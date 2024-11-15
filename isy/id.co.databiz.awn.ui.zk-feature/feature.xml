@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feature
+      id="id.co.databiz.awn.ui.zk"
+      label="AWN ZK Feature"
+      version="8.2.0.qualifier"
+      provider-name="PT. Inovasi Databiz">
+
+   <description url="http://www.example.com/description">
+      [Enter Feature Description here.]
+   </description>
+
+   <copyright url="http://www.example.com/copyright">
+      [Enter Copyright Description here.]
+   </copyright>
+
+   <license url="http://www.example.com/license">
+      [Enter License Description here.]
+   </license>
+
+   <includes
+         id="id.co.databiz.awn.base"
+         version="0.0.0"/>
+
+   <requires>
+      <import plugin="org.adempiere.ui.zk" version="1.0.0" match="greaterOrEqual"/>
+      <import plugin="org.adempiere.base"/>
+      <import plugin="org.adempiere.ui" version="1.0.0" match="greaterOrEqual"/>
+      <import plugin="org.adempiere.plugin.utils"/>
+      <import plugin="id.co.databiz.awn.base"/>
+      <import plugin="org.idempiere.zk.extra" version="1.0.0" match="greaterOrEqual"/>
+      <import plugin="zcommon" version="8.0.1" match="greaterOrEqual"/>
+      <import plugin="zel" version="8.0.1" match="greaterOrEqual"/>
+      <import plugin="zhtml" version="8.0.1" match="greaterOrEqual"/>
+      <import plugin="zk" version="8.0.1" match="greaterOrEqual"/>
+      <import plugin="zkbind" version="8.0.1" match="greaterOrEqual"/>
+      <import plugin="zkplus" version="8.0.1" match="greaterOrEqual"/>
+      <import plugin="zul" version="8.0.1" match="greaterOrEqual"/>
+      <import plugin="zweb" version="8.0.1" match="greaterOrEqual"/>
+   </requires>
+
+   <plugin
+         id="id.co.databiz.awn.ui.zk"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="id.co.databiz.awn.ui.zk.theme"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         fragment="true"/>
+
+   <plugin
+         id="org.adempiere.ui.zk-fragment"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         fragment="true"
+         unpack="false"/>
+
+</feature>

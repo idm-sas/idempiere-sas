@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feature
+      id="id.co.databiz.sas.ui.zk.feature"
+      label="SAS Feature"
+      version="11.0.0.qualifier"
+      provider-name="PT. Inovasi Databiz">
+
+   <description url="http://www.example.com/description">
+      [Enter Feature Description here.]
+   </description>
+
+   <copyright url="http://www.example.com/copyright">
+      [Enter Copyright Description here.]
+   </copyright>
+
+   <license url="http://www.example.com/license">
+      [Enter License Description here.]
+   </license>
+
+   <includes
+         id="id.co.databiz.awn.ui.zk"
+         version="0.0.0"/>
+
+   <requires>
+      <import plugin="org.apache.commons.collections"/>
+      <import plugin="org.adempiere.base.callout"/>
+      <import plugin="org.eclipse.equinox.common"/>
+      <import plugin="org.eclipse.osgi"/>
+      <import plugin="zk"/>
+      <import plugin="id.co.databiz.sas.base" version="11.0.0" match="greaterOrEqual"/>
+      <import plugin="org.adempiere.base" version="11.0.0" match="greaterOrEqual"/>
+      <import plugin="org.adempiere.plugin.utils" version="11.0.0" match="greaterOrEqual"/>
+      <import plugin="org.adempiere.ui" version="11.0.0" match="greaterOrEqual"/>
+      <import plugin="id.co.databiz.awn.base" version="8.2.0" match="greaterOrEqual"/>
+      <import plugin="org.adempiere.ui.zk" version="11.0.0" match="greaterOrEqual"/>
+      <import plugin="org.eclipse.jetty.servlet-api"/>
+      <import plugin="wrapped.org.apache.poi.poi"/>
+      <import plugin="org.osgi.service.event"/>
+      <import plugin="id.co.databiz.awn.ui.zk" version="8.2.0" match="greaterOrEqual"/>
+      <import plugin="org.idempiere.zk.extra" version="11.0.0" match="greaterOrEqual"/>
+      <import plugin="zcommon" version="9.5.0" match="greaterOrEqual"/>
+      <import plugin="zel" version="9.5.0" match="greaterOrEqual"/>
+      <import plugin="zhtml" version="9.5.0" match="greaterOrEqual"/>
+      <import plugin="zk" version="9.5.0" match="greaterOrEqual"/>
+      <import plugin="zkbind" version="9.5.0" match="greaterOrEqual"/>
+      <import plugin="zkplus" version="9.5.0" match="greaterOrEqual"/>
+      <import plugin="zul" version="9.5.0" match="greaterOrEqual"/>
+      <import plugin="zweb" version="9.5.0" match="greaterOrEqual"/>
+   </requires>
+
+   <plugin
+         id="id.co.databiz.sas.base"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="id.co.databiz.sas.ui.zk"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="id.co.databiz.sas.ui.zk.theme"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         fragment="true"/>
+
+</feature>

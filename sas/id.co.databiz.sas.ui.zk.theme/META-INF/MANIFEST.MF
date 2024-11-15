@@ -1,0 +1,9 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: SAS Theme
+Bundle-SymbolicName: id.co.databiz.sas.ui.zk.theme;singleton:=true
+Bundle-Version: 11.0.0.qualifier
+Bundle-Vendor: PT. Inovasi Databiz
+Fragment-Host: org.adempiere.ui.zk
+Bundle-RequiredExecutionEnvironment: JavaSE-17
+Bundle-ClassPath: theme/

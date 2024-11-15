@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feature
+      id="id.co.databiz.awn.base"
+      label="AWN Base-feature"
+      version="8.2.0.qualifier"
+      provider-name="PT. Inovasi Databiz">
+
+   <description url="http://www.example.com/description">
+      [Enter Feature Description here.]
+   </description>
+
+   <copyright url="http://www.example.com/copyright">
+      [Enter Copyright Description here.]
+   </copyright>
+
+   <license url="http://www.example.com/license">
+      [Enter License Description here.]
+   </license>
+
+   <requires>
+      <import plugin="org.adempiere.base" version="0.0.0" match="greaterOrEqual"/>
+      <import plugin="org.adempiere.base" version="8.2.0" match="greaterOrEqual"/>
+      <import plugin="org.adempiere.ui" version="8.2.0" match="greaterOrEqual"/>
+      <import plugin="org.adempiere.plugin.utils" version="8.2.0" match="greaterOrEqual"/>
+      <import plugin="com.sun.mail.jakarta.mail"/>
+      <import plugin="org.eclipse.jetty.servlet-api"/>
+      <import plugin="org.apache.commons.collections"/>
+      <import plugin="org.eclipse.equinox.common"/>
+      <import plugin="org.eclipse.osgi"/>
+      <import plugin="org.osgi.service.event"/>
+      <import plugin="zk"/>
+   </requires>
+
+   <plugin
+         id="org.adempiere.base-fragment"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         fragment="true"
+         unpack="false"/>
+
+   <plugin
+         id="id.co.databiz.awn.base"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="org.adempiere.ui-fragment"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         fragment="true"
+         unpack="false"/>
+
+</feature>

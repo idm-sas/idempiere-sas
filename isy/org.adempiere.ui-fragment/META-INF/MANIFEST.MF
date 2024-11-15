@@ -1,0 +1,8 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: org.adempiere.ui-fragment
+Bundle-SymbolicName: org.adempiere.ui-fragment
+Bundle-Version: 8.2.0.qualifier
+Fragment-Host: org.adempiere.ui;bundle-version="0.0.0"
+Bundle-Vendor: PT. Inovasi Databiz
+Export-Package: org.compiere.print

@@ -1,0 +1,20 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: org.adempiere.base-fragment
+Bundle-SymbolicName: org.adempiere.base-fragment
+Bundle-Version: 8.2.0.qualifier
+Bundle-Vendor: PT. Inovasi Databiz
+Fragment-Host: org.adempiere.base;bundle-version="0.0.0"
+Export-Package: id.co.databiz.awn.model,
+ id.co.databiz.awn.model.wrapper,
+ org.adempiere.impexp,
+ org.compiere,
+ org.compiere.acct,
+ org.compiere.dbPort,
+ org.compiere.model,
+ org.compiere.print,
+ org.compiere.report,
+ org.compiere.util,
+ org.compiere.wf,
+ org.eevolution.model
+Bundle-ClassPath: super-csv-2.0.0-beta-1.jar

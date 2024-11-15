@@ -1,0 +1,7 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: org.adempiere.ui.zk-fragment
+Bundle-SymbolicName: org.adempiere.ui.zk-fragment
+Bundle-Version: 8.2.0.qualifier
+Bundle-Vendor: PT. Inovasi Databiz
+Fragment-Host: org.adempiere.ui.zk;bundle-version="0.0.0"

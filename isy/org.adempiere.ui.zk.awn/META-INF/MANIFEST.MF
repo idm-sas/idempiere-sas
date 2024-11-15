@@ -1,0 +1,10 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: org.adempiere.ui.zk.awn
+Bundle-SymbolicName: id.co.databiz.awn.ui.zk.theme
+Bundle-Version: 8.2.0.qualifier
+Fragment-Host: org.adempiere.ui.zk;bundle-version="0.0.0"
+Bundle-RequiredExecutionEnvironment: JavaSE-11
+Bundle-Vendor: PT. Inovasi Databiz
+Jetty-WarFragmentFolderPath: /
+Bundle-ClassPath: theme/

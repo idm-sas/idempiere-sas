@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+   <extension
+         id="id.co.databiz.sas.ui.zk.form.VInOutGen"
+         name="Generate Shipments (manual)"
+         point="org.adempiere.webui.Form">
+      <form
+            class="id.co.databiz.sas.ui.zk.form.WInOutGen"
+            priority="50">
+      </form>
+   </extension>
+   <extension
+         id="id.co.databiz.sas.ui.zk.form.PaymentAllocation"
+         name="Payment Allocation"
+         point="org.adempiere.webui.Form">
+      <form
+            class="id.co.databiz.sas.ui.zk.form.WAllocation"
+            priority="200">
+      </form>
+   </extension>
+   <extension
+         id="id.co.databiz.sas.ui.zk.form.GenerateKwitansi"
+         name="Generate Kwitansi"
+         point="org.adempiere.webui.Form">
+      <form
+            class="id.co.databiz.sas.ui.zk.form.WGenerateKwitansi"
+            priority="50">
+      </form>
+   </extension>
+   <extension
+         id="id.co.databiz.sas.ui.zk.form.VInvoiceGen"
+         name="Generate Invoices (manual)"
+         point="org.adempiere.webui.Form">
+      <form
+            class="id.co.databiz.sas.ui.zk.form.WInvoiceGen"
+            priority="200">
+      </form>
+   </extension>
+   <extension
+         id="id.co.databiz.sas.ui.zk.form.VMatch"
+         name="Matching PO Invoice Receipt"
+         point="org.adempiere.webui.Form">
+      <form
+            class="id.co.databiz.sas.ui.zk.form.WMatch"
+            priority="200">
+      </form>
+   </extension>
+
+</plugin>

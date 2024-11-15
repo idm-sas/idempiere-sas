@@ -1,0 +1,808 @@
+package id.co.databiz.sas.process;
+
+import id.co.databiz.awn.model.MVarianceDistribution;
+import id.co.databiz.awn.model.SystemID;
+import id.co.databiz.sas.SASSystemID;
+
+import java.math.BigDecimal;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.logging.Level;
+
+import org.adempiere.exceptions.AdempiereException;
+import org.compiere.model.MAccount;
+import org.compiere.model.MAcctSchema;
+import org.compiere.model.MClient;
+import org.compiere.model.MConversionType;
+import org.compiere.model.MJournal;
+import org.compiere.model.MJournalLine;
+import org.compiere.model.MPeriod;
+import org.compiere.model.MProductCategory;
+import org.compiere.model.MProductCategoryAcct;
+import org.compiere.model.Query;
+import org.compiere.process.ProcessInfoParameter;
+import org.compiere.process.SvrProcess;
+import org.compiere.util.DB;
+import org.compiere.util.Env;
+import org.compiere.util.Trx;
+
+/**
+ * 
+ * Distribution variance ver 2.0
+ * @author Anozi Mada , yg
+ * 
+ */
+public class VarianceDistribution extends SvrProcess {
+	private Timestamp p_DateAcct = null;
+	private boolean p_IsAdjust = false;
+	private int p_Product =0;
+	private BigDecimal p_WriteOffAmt = Env.ONEHUNDRED.multiply(Env.ONEHUNDRED); // Rp 10,000-
+
+	private MAcctSchema as = null;
+	private Timestamp dateStart = null;
+	private Timestamp dateEnd = null;
+
+	int count = 0;
+	int countR = 0;
+
+	int journalOrgID = 0;
+	
+	MJournal reversal = null;
+	Map<Integer,MJournal> reversalMap;
+	
+	StringBuffer inProductCategory = new StringBuffer("(");
+	MVarianceDistribution va;
+
+	/**
+	 * Prepare - e.g., get Parameters.
+	 */
+	protected void prepare() {
+		ProcessInfoParameter[] para = getParameter();
+		for (int i = 0; i < para.length; i++) {
+			String name = para[i].getParameterName();
+			if (para[i].getParameter() == null)
+				;
+			else if (name.equals("DateAcct"))
+				p_DateAcct = (Timestamp) para[i].getParameter();
+			else if (name.equals("IsAdjustCOGS"))
+				p_IsAdjust = "Y".equals(para[i].getParameter());
+			else if (name.equals("M_Product_ID"))
+				p_Product = para[i].getParameterAsInt();
+			else if (name.equals("WriteOffAmt"))
+				p_WriteOffAmt = para[i].getParameterAsBigDecimal();
+
+			else
+				log.log(Level.SEVERE, "Unknown Parameter: " + name);
+		}
+	
+		dateEnd = p_DateAcct;
+		Calendar startCalendar = Calendar.getInstance();
+		startCalendar.setTimeInMillis(p_DateAcct.getTime());
+		startCalendar.set(Calendar.DAY_OF_MONTH, 1);
+		dateStart = new Timestamp(startCalendar.getTimeInMillis());
+	} // prepare
+
+	/**
+	 * Perform process.
+	 * 
+	 * @return Message
+	 * @throws Exception
+	 */
+	protected String doIt() throws java.lang.Exception {
+		log.info("Start Variance Distribution");
+		String info = "";
+		Trx trx = Trx.get(get_TrxName(), true);
+		trx.setTimeout(24 * 60 * 60); //about 24 hour
+		as = MClient.get(getCtx()).getAcctSchema();
+		
+		List<String> varianceAccounts = new ArrayList<String>();
+		varianceAccounts.add("pa.P_CostAdjustment_Acct");
+		varianceAccounts.add("pa.P_InvoicePriceVariance_Acct");
+		List<MProductCategory> productCategoryList = getProductCategoryStandardCosting(as);
+		if (productCategoryList.isEmpty()) {
+			addLog("No Product Category");
+		} else {
+			for (MProductCategory pc : productCategoryList) {
+				if (!productCategoryList.get(0).equals(pc)) {
+					inProductCategory.append(",");
+				}
+				inProductCategory.append(pc.get_ID());
+			}
+			inProductCategory.append(")");
+			}
+		
+		for (String varianceAccount : varianceAccounts) {
+			flushProductBalanceCacheTable(); // flush tables
+			fillAccountBalanceCacheTable(varianceAccount); // cache dari fact_acct
+			fillCacheProductBalanceQtyMassal(); // cache dari rv_transaction
+			writeOffCogsMassal();
+			distributeProductAssetMassal(info);
+			distributeMassal(info);
+		}
+
+		if (p_IsAdjust) generate();
+
+		return info;
+	} // doIt
+	
+	private void flushProductBalanceCacheTable() throws IllegalStateException, SQLException {
+			//flush cube table
+		DB.executeUpdateEx("truncate t_variancesdistribution_cache ", get_TrxName());	
+		DB.executeUpdateEx("truncate t_variancesdistribution_account_cache ", get_TrxName());
+		DB.commit(true, get_TrxName());
+		log.info("t_variancesdistribution_% tables flushed");
+		}
+
+	private void fillAccountBalanceCacheTable(String varianceAccount) throws IllegalStateException, SQLException {
+	List<Object> params = new ArrayList<Object>();
+	params.add(dateStart);
+	params.add(dateEnd);
+	String sql ="INSERT INTO t_variancesdistribution_account_cache (ad_pinstance_id,account_id, m_product_id,amt)"
+			+ " SELECT "+ getAD_PInstance_ID() +
+			",fa.Account_ID, fa.M_Product_ID" +
+			", SUM(fa.AmtAcctDr - fa.AmtAcctCr) Amt"+
+			" FROM Fact_Acct fa " + 
+			" INNER JOIN M_Product p ON (p.M_Product_ID = fa.M_Product_ID)" + 
+			" INNER JOIN M_Product_Acct pa ON (pa.M_Product_ID = p.M_Product_ID AND pa.C_AcctSchema_ID = fa.C_AcctSchema_ID)" + 
+			" INNER JOIN C_ValidCombination vc ON vc.C_ValidCombination_ID ="+varianceAccount +  //param variances account
+			" WHERE 1=1" + 
+			" AND fa.Account_ID = vc.Account_ID" + 
+			" AND p.ProductType = 'I'" + 
+			" AND p.IsStocked = 'Y'" + 
+			" AND fa.C_AcctSchema_ID ="+ as.get_ID() +
+			" AND (fa.DateAcct BETWEEN ? AND ?)" + // param dates use params.toArray()
+			" AND fa.M_Product_ID ="+(p_Product == 0 ? "fa.M_Product_ID" : p_Product) + //param product
+			" AND p.M_Product_Category_ID IN " +  inProductCategory +
+			" GROUP BY fa.Account_ID,fa.M_Product_ID" + 
+			" ORDER BY fa.Account_ID,fa.M_Product_ID";
+	DB.executeUpdateEx(sql, params.toArray(), get_TrxName());
+	DB.commit(true, get_TrxName());
+	log.info("inserted cache table t_variancesdistribution_account_cache ");
+	}
+
+	private void fillCacheProductBalanceQtyMassal() throws IllegalStateException, SQLException {
+
+		//fill temp table per produk for qty detail
+		List<Object> params = new ArrayList<Object>();
+		params.add(dateStart);
+		params.add(dateEnd);
+		params.add(dateStart);
+		String sql ="insert into t_variancesdistribution_cache" + 
+				" select "+getAD_PInstance_ID()+
+				",t.ad_org_id , t.ad_orgtrx_id , t.c_project_id , t.c_campaign_id ,t.m_warehouse_id, t.m_product_id, t.m_inventoryline_c_charge_id" + 
+				",sum(t.saldo_awal) as saldo_awal" + 
+				",sum(t.V_PLUS_QTY) V_PLUS_QTY" + 
+				",sum(V_MINUS_QTY) V_MINUS_QTY" + 
+				",sum(C_PLUS_QTY) C_PLUS_QTY" + 
+				",sum(C_MINUS_QTY) C_MINUS_QTY" + 
+				",sum(I_PLUS_QTY) I_PLUS_QTY" + 
+				",sum(I_MINUS_QTY) I_MINUS_QTY" + 
+				",sum(M_PLUS_QTY) M_PLUS_QTY" + 
+				",sum(M_MINUS_QTY) M_MINUS_QTY" + 
+				",sum(W_PLUS_QTY) W_PLUS_QTY" + 
+				",sum(W_MINUS_QTY) W_MINUS_QTY" + 
+				",sum(P_PLUS_QTY) P_PLUS_QTY" + 
+				",sum(P_MINUS_QTY) P_MINUS_QTY" + 
+				",sum(t.saldo_awal+t.V_PLUS_QTY+V_MINUS_QTY+C_PLUS_QTY+C_MINUS_QTY+I_PLUS_QTY"
+				+ "+I_MINUS_QTY+M_PLUS_QTY+M_MINUS_QTY+W_PLUS_QTY+W_MINUS_QTY+P_PLUS_QTY+P_MINUS_QTY) as saldo_akhir" + 
+				" from (SELECT "
+				+ " t.ad_org_id , t.ad_orgtrx_id , t.c_project_id , t.c_campaign_id ,t.m_warehouse_id, t.m_product_id, t.m_inventoryline_c_charge_id" + 
+				",0 as saldo_awal" + 
+				",sum(case when t.MovementType = 'V+' and sign(t.movementqty) > 0 then t.movementqty else 0 end) as V_PLUS_QTY" + 
+				",sum(case when t.MovementType = 'V-' then t.movementqty else 0 end) as V_MINUS_QTY" + 
+				",sum(case when t.MovementType = 'C+' then t.movementqty else 0 end) as C_PLUS_QTY" + 
+				",sum(case when t.MovementType = 'C-' then t.movementqty else 0 end) as C_MINUS_QTY" + 
+				",sum(case when t.MovementType = 'I+' then t.movementqty else 0 end) as I_PLUS_QTY" + 
+				",sum(case when t.MovementType = 'I-' then t.movementqty else 0 end) as I_MINUS_QTY" + 
+				",sum(case when t.MovementType = 'M+' then t.movementqty else 0 end) as M_PLUS_QTY" + 
+				",sum(case when t.MovementType = 'M-' then t.movementqty else 0 end) as M_MINUS_QTY" + 
+				",sum(case when t.MovementType = 'W+' then t.movementqty else 0 end) as W_PLUS_QTY" + 
+				",sum(case when t.MovementType = 'W-' then t.movementqty else 0 end) as W_MINUS_QTY" + 
+				",sum(case when t.MovementType = 'P+' then t.movementqty else 0 end) as P_PLUS_QTY" + 
+				",sum(case when t.MovementType = 'V+' and sign(t.movementqty) < 0 then t.movementqty else 0 end) as P_MINUS_QTY" + 
+				" FROM rv_transaction t" + 
+				" where 1=1" + 
+				" and M_Product_ID IN (select distinct m_product_id from t_variancesdistribution_account_cache where ad_pinstance_id ="+getAD_PInstance_ID()
+				+" ) " + 
+				" AND MovementDate between ? and ? " + 
+				" group by" + 
+				" t.ad_org_id , t.ad_orgtrx_id , t.c_project_id , t.c_campaign_id ,t.m_warehouse_id, t.m_product_id, t.m_inventoryline_c_charge_id " + 
+				" union all " + 
+				" SELECT t.ad_org_id , t.ad_orgtrx_id , t.c_project_id , t.c_campaign_id ,t.m_warehouse_id, t.m_product_id ,t.m_inventoryline_c_charge_id " + 
+				",sum(t.movementqty) as saldo_awal" + 
+				",0 as V_PLUS_QTY" + 
+				",0 as V_MINUS_QTY" + 
+				",0 as C_PLUS_QTY" + 
+				",0 as C_MINUS_QTY" + 
+				",0 as I_PLUS_QTY" + 
+				",0 as I_MINUS_QTY" + 
+				",0 as M_PLUS_QTY" + 
+				",0 as M_MINUS_QTY" + 
+				",0 as W_PLUS_QTY" + 
+				",0 as W_MINUS_QTY" + 
+				",0 as P_PLUS_QTY" + 
+				",0 as P_MINUS_QTY" + 
+				" FROM rv_transaction t" + 
+				" where 1=1" + 
+				" and M_Product_ID IN (select distinct m_product_id from t_variancesdistribution_account_cache where ad_pinstance_id ="+ getAD_PInstance_ID()+
+				" ) " + 
+				" AND MovementDate < ? " + 
+				" group by" + 
+				" t.ad_org_id , t.ad_orgtrx_id , t.c_project_id , t.c_campaign_id ,t.m_warehouse_id, t.m_product_id, t.m_inventoryline_c_charge_id ) t" + 
+				" group by t.ad_org_id , t.ad_orgtrx_id , t.c_project_id , t.c_campaign_id ,t.m_warehouse_id, t.m_product_id, t.m_inventoryline_c_charge_id" + 
+				" order by t.ad_org_id , t.ad_orgtrx_id , t.c_project_id , t.c_campaign_id ,t.m_warehouse_id, t.m_product_id, t.m_inventoryline_c_charge_id";
+		int no = DB.executeUpdateEx(sql, params.toArray(), get_TrxName());
+		DB.commit(true, get_TrxName());
+		log.info(no + " records inserted to table t_variancesdistribution_cache ");
+
+		//insert denomQty , finalQty , 
+		sql = "update t_variancesdistribution_account_cache a " + 
+				" set denom_qty = q.denom_qty" + 
+				" ,final_qty = q.saldo_akhir" + 
+				" from (select m_product_id " + 
+				"	, sum(saldo_awal + v_plus +c_plus +i_plus +w_plus +p_plus) as denom_qty " + 
+				"	, sum(saldo_akhir) as saldo_akhir" + 
+				"	from t_variancesdistribution_cache" + 
+				"	group by m_product_id) q" + 
+				" where q.m_product_id = a.m_product_id";
+		no = DB.executeUpdateEx(sql, get_TrxName());
+		DB.commit(true, get_TrxName());
+		log.info(no + " denomqty and saldo_akhir updated qty on t_variancesdistribution_account_cache ");
+		
+		//update validcombination account id for : cogs, asset, variances
+		sql = "update t_variancesdistribution_account_cache a" + 
+				" set cogs_account_id = q.cogs_account_id , asset_account_id = q.asset_account_id , ppv_account_id = q.ppv_account_id" + 
+				" from ("+
+					" select pa.m_product_id,cvc.account_id cogs_account_id , avc.account_id asset_account_id , ppvvc.account_id ppv_account_id" + 
+					" from m_product_acct pa , c_validcombination cvc ,c_validcombination avc ,c_validcombination ppvvc " + 
+					" where 1=1" + 
+					" and pa.p_cogs_acct = cvc.c_validcombination_id" + 
+					" and pa.p_asset_acct = avc.c_validcombination_id" + 
+					" and pa.p_purchasepricevariance_acct = ppvvc.c_validcombination_id" + 
+					" and pa.c_acctschema_id ="+as.get_ID() +
+				") q" + 
+				" where q.m_product_id = a.m_product_id"+
+				" and a.ad_pinstance_id ="+getAD_PInstance_ID();
+		DB.executeUpdateEx(sql.toString(), get_TrxName());
+		DB.commit(false, get_TrxName());
+		log.info("update accountings accounts_ID for each product, cogs, asset , ppv ");
+	}
+
+	/**
+	 * B0 WiteOff COGS
+	 * untuk denomqty 0 atau finalqty 0 , maka semua buang ke COGS ORG SUNTER
+	 * @throws SQLException 
+	 * @throws IllegalStateException 
+	 */
+	private void writeOffCogsMassal() throws IllegalStateException, SQLException {
+		
+		//remove 0 amt records
+		String sql = " delete from t_variancesdistribution_account_cache a" + 
+				" where abs(round(a.amt,0))=0 and a.ad_pinstance_id ="+getAD_PInstance_ID();
+		DB.executeUpdateEx(sql.toString(), get_TrxName());
+		DB.commit(false, get_TrxName());
+		log.info("deleted recordw with 0 amt (nothing to distribute) ");
+		
+		//writeoff to cogs for certain amt (param writeOffAmt)
+		int orgID = SASSystemID.ORG_SUNTER;
+		String info = "";
+		sql = " select m_product_id, account_id, cogs_account_id ,amt " + 
+				" from t_variancesdistribution_account_cache a" + 
+				" where (a.denom_qty=0 or a.final_qty = 0  or abs(a.amt) < "+p_WriteOffAmt.intValue()+
+				" ) and a.ad_pinstance_id ="+getAD_PInstance_ID();
+		ResultSet rs = DB.getRowSet(sql);
+		while (rs.next()) {
+			int productID = rs.getInt(1);
+			int varianceAccountID = rs.getInt(2);
+			int cogsAccountID = rs.getInt(3);
+			BigDecimal varianceAmt = rs.getBigDecimal(4);
+			
+			va = new MVarianceDistribution(getCtx(),0, get_TrxName());
+			va.setAD_Org_ID(orgID);
+			va.setAD_PInstance_ID(getAD_PInstance_ID());
+			va.setAccount_ID(varianceAccountID);
+			va.setM_Product_ID(productID);
+			if (varianceAmt.compareTo(Env.ZERO) > 0) {
+				va.setAmtAcctCr(varianceAmt.abs());
+			} else {
+				va.setAmtAcctDr(varianceAmt.abs());
+			}
+			va.setLine(new Integer(++count * 10));
+			va.setDescription(info + " A0. ");
+			va.setDateAcct(dateEnd);
+			va.setIsAdjustCOGS(p_IsAdjust);
+			va.saveEx();
+
+			//
+			va = new MVarianceDistribution(getCtx(), 0, get_TrxName());
+			va.setAD_Org_ID(orgID);
+			va.setAD_PInstance_ID(getAD_PInstance_ID());
+			va.setAccount_ID(cogsAccountID);
+			va.setM_Product_ID(productID);
+			if (varianceAmt.compareTo(Env.ZERO) > 0) {
+				va.setAmtAcctDr(varianceAmt.abs());
+			} else {
+				va.setAmtAcctCr(varianceAmt.abs());
+			}
+			va.setLine(new Integer(++count * 10));
+			va.setDescription(info + " B0. Write off to COGS");
+			va.setDateAcct(dateEnd);
+			va.setIsAdjustCOGS(p_IsAdjust);
+			va.saveEx();
+		}
+		
+		//remove writed-off records
+		sql = " delete from t_variancesdistribution_account_cache a" + 
+				" where (a.denom_qty=0 or a.final_qty = 0  or abs(a.amt) < "+p_WriteOffAmt.intValue()+
+				" ) and a.ad_pinstance_id ="+getAD_PInstance_ID();
+		DB.executeUpdateEx(sql.toString(), get_TrxName());
+		DB.commit(false, get_TrxName());
+		log.info("deleted recordw after Write off with certain criteria ");
+		
+////		bikin sisi variance bulk per org per produk
+//		sql = " select q.ad_org_id,a.m_product_id,a.account_id" + 
+//				"	 , sum(saldo_awal + v_plus +c_plus +i_plus +w_plus +p_plus)/max(a.denom_qty)*max(a.amt)" + 
+//				"	 from t_variancesdistribution_cache q" + 
+////				"    join m_warehouse wh on wh.m_warehouse_id = q.m_warehouse_id" + 
+//				"	 join t_variancesdistribution_account_cache a on a.ad_pinstance_id = q.ad_pinstance_id and a.m_product_id = q.m_product_id" + 
+//				"	 where q.ad_pinstance_id =" + getAD_PInstance_ID() +
+//				"	 group by q.ad_org_id,a.m_product_id,a.account_id";
+////				"	 having SUM(q.i_minus) <> 0";
+//		rs = DB.getRowSet(sql);
+//		while (rs.next()) {
+//			orgID = rs.getInt(1);
+//			int productID = rs.getInt(2);
+//			int varianceAccountID = rs.getInt(3);
+//			BigDecimal varianceAmt = rs.getBigDecimal(4);
+//			
+//			va = new MVarianceDistribution(getCtx(),0, get_TrxName());
+//			va.setAD_PInstance_ID(getAD_PInstance_ID());
+//			va.setAD_Org_ID(orgID);
+//			va.setAccount_ID(varianceAccountID);
+//			va.setM_Product_ID(productID);
+//			if (varianceAmt.compareTo(Env.ZERO) > 0) {
+//				va.setAmtAcctCr(varianceAmt.abs());
+//			} else {
+//				va.setAmtAcctDr(varianceAmt.abs());
+//			}
+//			va.setLine(new Integer(++count * 10));
+//			va.setDescription(info + " A0. ");
+//			va.setDateAcct(dateEnd);
+//			va.setIsAdjustCOGS(p_IsAdjust);
+//			va.saveEx();
+//		}
+	}
+
+	private void distributeProductAssetMassal( String info) throws AdempiereException, SQLException {
+	String sql ="select wh.ad_org_id as org_id ,q.m_product_id, a.account_id variance_account , sum(q.saldo_akhir)/max(a.denom_qty)*max(a.amt) var_org_amt,a.asset_account_id" + 
+			" from t_variancesdistribution_cache q " + 
+			" join m_warehouse wh on wh.m_warehouse_id = q.m_warehouse_id" + 
+			" join t_variancesdistribution_account_cache a on a.ad_pinstance_id = q.ad_pinstance_id and a.m_product_id = q.m_product_id" + 
+			" where q.ad_pinstance_id = "+getAD_PInstance_ID() + 
+			" group by wh.ad_org_id , q.m_product_id, a.account_id ,a.asset_account_id " + 
+			" having sum(q.saldo_akhir) <> 0 and max(a.denom_qty) <> 0"+
+//			" and abs(sum(q.saldo_akhir)/max(a.final_qty)*max(a.amt)) > 100" + 
+			" order by q.m_product_id , a.account_id , wh.ad_org_id";
+	ResultSet rs = DB.getRowSet(sql);
+	while(rs.next()) {
+		int orgID = rs.getInt(1);
+		int productID = rs.getInt(2);
+		int varianceAccountID = rs.getInt(3);
+		BigDecimal productVarianceAmt = rs.getBigDecimal(4);
+		int asset_account_id = rs.getInt(5);
+		
+		va = new MVarianceDistribution(getCtx(),0, get_TrxName());
+		va.setAD_Org_ID(orgID);
+		va.setAD_PInstance_ID(getAD_PInstance_ID());
+		va.setAccount_ID(varianceAccountID);
+		va.setM_Product_ID(productID);
+		if (productVarianceAmt.compareTo(Env.ZERO) > 0) {
+			va.setAmtAcctCr(productVarianceAmt.abs());
+		} else {
+			va.setAmtAcctDr(productVarianceAmt.abs());
+		}
+		va.setLine(new Integer(++count * 10));
+		va.setDescription(info + " A0");
+		va.setDateAcct(dateEnd);
+		va.setIsAdjustCOGS(p_IsAdjust);
+		va.saveEx();
+	
+		//
+		va = new MVarianceDistribution(getCtx(), 0, get_TrxName());
+		va.setAD_Org_ID(orgID);
+		va.setAD_PInstance_ID(getAD_PInstance_ID());
+		va.setAccount_ID(asset_account_id);
+		va.setM_Product_ID(productID);
+		va.setAmtAcctDr(Env.ZERO);
+		va.setAmtAcctCr(Env.ZERO);
+		if (productVarianceAmt.compareTo(Env.ZERO) > 0) {
+			va.setAmtAcctDr(productVarianceAmt.abs());
+		} else {
+			va.setAmtAcctCr(productVarianceAmt.abs());
+		}
+		va.setLine(new Integer(++count * 10));
+		va.setDescription(info + " B1. Product Asset");
+		va.setDateAcct(dateEnd);
+		va.setIsAdjustCOGS(p_IsAdjust);
+		va.saveEx();
+		
+		// reversal for next month
+		if (p_IsAdjust) {
+			
+			if (reversalMap == null) {
+				reversalMap = new HashMap<Integer, MJournal>();
+			}
+			
+			if (reversal == null || reversalMap.get(orgID) == null) {
+				Calendar calendar = Calendar.getInstance();
+				calendar.setTime(dateEnd);
+				calendar.set(calendar.get(Calendar.YEAR),
+						calendar.get(Calendar.MONTH), 1);
+				calendar.add(Calendar.MONTH, 1);
+				reversal = new MJournal(getCtx(), 0, get_TrxName());
+				reversal.setAD_Org_ID(orgID);
+				reversal.setC_AcctSchema_ID(as.get_ID());
+				reversal.setDescription(" Reversal >> Generated from process Variance Distribution "
+						+ p_DateAcct);
+				reversal.setPostingType(MJournal.POSTINGTYPE_Actual);
+				reversal.setC_DocType_ID(SystemID.DOCTYPE_GL_VarAdj);
+				reversal.setGL_Category_ID(SystemID.GL_CATEGORY_VarAdj);
+				reversal.setDateDoc(new Timestamp(calendar
+						.getTimeInMillis()));
+				reversal.setDateAcct(new Timestamp(calendar
+						.getTimeInMillis()));
+				MPeriod.testPeriodOpen(getCtx(),
+						new Timestamp(calendar.getTimeInMillis()),
+						reversal.getC_DocType_ID(), reversal.getAD_Org_ID());
+				reversal.setC_Period_ID(MPeriod.getC_Period_ID(getCtx(),
+						new Timestamp(calendar.getTimeInMillis()),
+						reversal.getAD_Org_ID()));
+				reversal.setC_Currency_ID(as.getC_Currency_ID());
+				reversal.setC_ConversionType_ID(MConversionType.TYPE_SPOT);
+				reversal.saveEx();
+				reversalMap.put(orgID, reversal);
+			}
+			
+			reversal = reversalMap.get(orgID);
+			MJournalLine line = null;
+			MAccount account = null;
+	
+			line = new MJournalLine(reversal);
+			line.setLine(++countR * 10);
+			line.setDescription(info + "Reversal B1. Product Asset");
+			line.setM_Product_ID(productID);
+			line.setAmtSourceDr(productVarianceAmt.abs());
+			line.setAmtSourceCr(Env.ZERO);
+			line.setAmtAcct(productVarianceAmt.abs(), Env.ZERO);
+			if (productVarianceAmt.compareTo(Env.ZERO) > 0) {
+				account = getOrCreateCombination(line, varianceAccountID);
+			} else {
+				account = getOrCreateCombination(line, asset_account_id);
+			}
+			if (account != null) {
+				line.setC_ValidCombination_ID(account);
+			}
+			line.setAccount_ID(account.get_ID());
+			line.saveEx();
+	
+			line = new MJournalLine(reversal);
+			line.setLine(++countR * 10);
+			line.setDescription(info + " Reversal B1. Product Asset");
+			line.setM_Product_ID(productID);
+			line.setAmtSourceDr(Env.ZERO);
+			line.setAmtSourceCr(productVarianceAmt.abs());
+			line.setAmtAcct(Env.ZERO, productVarianceAmt.abs());
+			if (productVarianceAmt.compareTo(Env.ZERO) > 0) {
+				account = getOrCreateCombination(line, asset_account_id);
+			} else {
+				account = getOrCreateCombination(line, varianceAccountID);
+			}
+			if (account != null) {
+				line.setC_ValidCombination_ID(account);
+			}
+			line.setAccount_ID(account.get_ID());
+			line.saveEx();
+			}
+		}
+	}
+
+	private void distributeMassal(String info) throws AdempiereException, SQLException {
+		BigDecimal cogsVarianceAmt;
+		BigDecimal vendorReturnAmt;
+		BigDecimal whDifferenceVarianceAmt;
+		// B2A. Warehouse Difference / B2B. Internal Use
+		String sql="select q.ad_org_id,q.ad_orgtrx_id,q.c_project_id,q.c_campaign_id,a.m_product_id,a.account_id,coalesce(cvc.account_id,whc.account_id) diff_account_id" + 
+				" , SUM(q.i_minus)*-1/max(a.denom_qty)*max(a.amt) diff_amt" +  // qty * -1 (negate)
+				" from t_variancesdistribution_cache q " + 
+				" join m_warehouse wh on wh.m_warehouse_id = q.m_warehouse_id" + 
+				" join m_warehouse_acct wa on wa.m_warehouse_id = wh.m_warehouse_id and wa.c_acctschema_id ="+as.get_ID() + 
+				" left join c_validcombination whc on whc.c_validcombination_id = wa.w_differences_acct and whc.c_acctschema_id ="+as.get_ID() +
+				" left join c_charge_acct ca on ca.c_charge_id = q.m_inventoryline_c_charge_id" + 
+				" left join c_validcombination cvc on cvc.c_validcombination_id = ca.ch_expense_acct and cvc.c_acctschema_id ="+as.get_ID() +
+				" join t_variancesdistribution_account_cache a on a.ad_pinstance_id = q.ad_pinstance_id and a.m_product_id = q.m_product_id" + 
+				" where q.ad_pinstance_id ="+getAD_PInstance_ID() +
+				" group by q.ad_org_id,q.ad_orgtrx_id,q.c_project_id,q.c_campaign_id,a.m_product_id,a.account_id,coalesce(cvc.account_id,whc.account_id)" + 
+				" having SUM(q.i_minus) <> 0"+
+//				" AND ABS(SUM(q.i_minus)*-1/max(a.denom_qty)*max(a.amt)) > 100" + 
+				" order by m_product_id , ad_org_id ,ad_orgtrx_id ,c_project_id ,c_campaign_id,a.account_id";
+		ResultSet rs = DB.getRowSet(sql);
+		while(rs.next()) {
+			int orgID = rs.getInt(1);
+			int orgTrxID = rs.getInt(2);
+			int projectID = rs.getInt(3);
+			int campaignID = rs.getInt(4);
+			int productID = rs.getInt(5);
+			int varianceAccountID = rs.getInt(6);
+			int accountID = rs.getInt(7);
+			whDifferenceVarianceAmt = rs.getBigDecimal(8);
+			if (whDifferenceVarianceAmt == null) whDifferenceVarianceAmt=Env.ZERO;
+			
+			va = new MVarianceDistribution(getCtx(), 0, get_TrxName());
+			va.setAD_Org_ID(orgID);
+			va.setAD_PInstance_ID(getAD_PInstance_ID());
+			va.setAccount_ID(varianceAccountID);
+			va.setM_Product_ID(productID);
+			if (whDifferenceVarianceAmt.compareTo(Env.ZERO) > 0) {
+				va.setAmtAcctCr(whDifferenceVarianceAmt.abs());
+				} else {
+				va.setAmtAcctDr(whDifferenceVarianceAmt.abs());
+				}
+			va.setLine(new Integer(++count * 10));
+			va.setDescription(info + " B2A. ( I+ , I- )");
+			va.setDateAcct(dateEnd);
+			va.setIsAdjustCOGS(p_IsAdjust);
+			va.saveEx();
+			
+			va = new MVarianceDistribution(getCtx(), 0, get_TrxName());
+			va.setAD_Org_ID(orgID);
+			va.setAD_OrgTrx_ID(orgTrxID);
+			va.setAD_PInstance_ID(getAD_PInstance_ID());
+			va.setAccount_ID(accountID);
+			va.setC_Project_ID(projectID);
+			va.setC_Campaign_ID(campaignID);
+			va.setM_Product_ID(productID);
+			if (whDifferenceVarianceAmt.compareTo(Env.ZERO) > 0) {
+				va.setAmtAcctDr(whDifferenceVarianceAmt.abs());
+			} else {
+				va.setAmtAcctCr(whDifferenceVarianceAmt.abs());
+			}
+			va.setLine(new Integer(++count * 10));
+			va.setDescription(info + " B2A. I+ I- ");
+			va.setDateAcct(dateEnd);
+			va.setIsAdjustCOGS(p_IsAdjust);
+			va.saveEx();
+		} 
+	
+	// B2D. Vendor Return
+		sql="select q.ad_org_id,q.ad_orgtrx_id,q.c_project_id,q.c_campaign_id,a.m_product_id,a.account_id,a.ppv_account_id" + 
+				" , SUM(q.v_minus+q.p_minus)*-1/max(a.denom_qty)*max(a.amt) diff_amt" +  // qty * -1 (negate)
+				" from t_variancesdistribution_cache q " + 
+				" join m_warehouse wh on wh.m_warehouse_id = q.m_warehouse_id" + 
+				" join m_warehouse_acct wa on wa.m_warehouse_id = wh.m_warehouse_id and wa.c_acctschema_id ="+as.get_ID() + 
+				" join c_validcombination vc on vc.c_validcombination_id = wa.w_differences_acct" + 
+				" left join c_charge_acct ca on ca.c_charge_id = q.m_inventoryline_c_charge_id" + 
+				" left join c_validcombination cvc on cvc.c_validcombination_id = ca.ch_expense_acct and cvc.c_acctschema_id ="+as.get_ID() +
+				" join t_variancesdistribution_account_cache a on a.ad_pinstance_id = q.ad_pinstance_id and a.m_product_id = q.m_product_id" + 
+				" where q.ad_pinstance_id ="+getAD_PInstance_ID() +
+				" group by q.ad_org_id,q.ad_orgtrx_id,q.c_project_id,q.c_campaign_id,a.m_product_id,a.account_id,a.ppv_account_id" + 
+				" having SUM(q.v_minus+q.p_minus) <> 0"+
+//				" AND ABS(SUM(q.v_minus+q.p_minus)*-1/max(a.denom_qty)*max(a.amt))>100" + 
+				" order by m_product_id , ad_org_id ,ad_orgtrx_id ,c_project_id ,c_campaign_id,a.account_id";
+		rs = DB.getRowSet(sql);
+		while(rs.next()) {
+			
+			int orgID = rs.getInt(1);
+			int orgTrxID = rs.getInt(2);
+			int projectID = rs.getInt(3);
+			int campaignID = rs.getInt(4);
+			int productID = rs.getInt(5);
+			int varianceAccountID = rs.getInt(6);
+			int ppv_accountID = rs.getInt(7);
+			vendorReturnAmt = rs.getBigDecimal(8);
+
+			va = new MVarianceDistribution(getCtx(),0, get_TrxName());
+			va.setAD_Org_ID(orgID);
+			va.setAD_PInstance_ID(getAD_PInstance_ID());
+			va.setAccount_ID(varianceAccountID);
+			va.setM_Product_ID(productID);
+			if (vendorReturnAmt.compareTo(Env.ZERO) > 0) {
+				va.setAmtAcctCr(vendorReturnAmt.abs());
+			} else {
+				va.setAmtAcctDr(vendorReturnAmt.abs());
+			}
+			va.setLine(new Integer(++count * 10));
+			va.setDescription(info + " B2D. (V-)");
+			va.setDateAcct(dateEnd);
+			va.setIsAdjustCOGS(p_IsAdjust);
+			va.saveEx();
+			
+			// counter journal
+			va = new MVarianceDistribution(getCtx(), 0, get_TrxName());
+			va.setAD_Org_ID(orgID);
+			va.setAD_OrgTrx_ID(orgTrxID);
+			va.setAD_PInstance_ID(getAD_PInstance_ID());
+			va.setAccount_ID(ppv_accountID);
+			va.setC_Project_ID(projectID);
+			va.setC_Campaign_ID(campaignID);
+			va.setM_Product_ID(productID);
+			if (vendorReturnAmt.compareTo(Env.ZERO) > 0) {
+				va.setAmtAcctDr(vendorReturnAmt.abs());
+			} else {
+				va.setAmtAcctCr(vendorReturnAmt.abs());
+			}
+			va.setLine(new Integer(++count*10));
+			va.setDescription(info + " B2D. Vendor Return");
+			va.setDateAcct(dateEnd);
+			va.setIsAdjustCOGS(p_IsAdjust);
+			va.saveEx();
+			}
+			
+		// B2C. COGS
+		sql="select q.ad_org_id,q.ad_orgtrx_id,q.c_project_id,q.c_campaign_id,a.m_product_id,a.account_id,a.cogs_account_id" + 
+				" , SUM(q.c_minus)*-1/max(a.denom_qty)*max(a.amt) diff_amt" +  // qty * -1 (negate)
+				" from t_variancesdistribution_cache q " + 
+				" join m_warehouse wh on wh.m_warehouse_id = q.m_warehouse_id" + 
+				" join m_warehouse_acct wa on wa.m_warehouse_id = wh.m_warehouse_id and wa.c_acctschema_id ="+as.get_ID() + 
+				" join c_validcombination vc on vc.c_validcombination_id = wa.w_differences_acct" + 
+				" left join c_charge_acct ca on ca.c_charge_id = q.m_inventoryline_c_charge_id" + 
+				" left join c_validcombination cvc on cvc.c_validcombination_id = ca.ch_expense_acct and cvc.c_acctschema_id ="+as.get_ID() +
+				" join t_variancesdistribution_account_cache a on a.ad_pinstance_id = q.ad_pinstance_id and a.m_product_id = q.m_product_id" + 
+				" where q.ad_pinstance_id ="+getAD_PInstance_ID() +
+				" group by q.ad_org_id,q.ad_orgtrx_id,q.c_project_id,q.c_campaign_id,a.m_product_id,a.account_id,a.cogs_account_id" + 
+				" having SUM(q.c_minus) <> 0"+
+//				" AND ABS(SUM(q.c_minus)*-1/max(a.denom_qty)*max(a.amt))>100" + 
+				" order by m_product_id , ad_org_id ,ad_orgtrx_id ,c_project_id ,c_campaign_id,a.account_id";
+		rs = DB.getRowSet(sql);
+		while(rs.next()) {
+			MVarianceDistribution va = new MVarianceDistribution(getCtx(),0, get_TrxName());
+			
+			int orgID = rs.getInt(1);
+			int orgTrxID = rs.getInt(2);
+			int projectID = rs.getInt(3);
+			int campaignID = rs.getInt(4);
+			int productID = rs.getInt(5);
+			int varianceAccountID = rs.getInt(6);
+			int cogs_accountID = rs.getInt(7);
+			cogsVarianceAmt = rs.getBigDecimal(8);
+
+			va.setAD_Org_ID(orgID);
+			va.setAD_PInstance_ID(getAD_PInstance_ID());
+			va.setAccount_ID(varianceAccountID);
+			va.setM_Product_ID(productID);
+			if (cogsVarianceAmt.compareTo(Env.ZERO) > 0) {
+				va.setAmtAcctCr(cogsVarianceAmt.abs());
+			} else {
+				va.setAmtAcctDr(cogsVarianceAmt.abs());
+			}
+			va.setLine(new Integer(++count * 10));
+			va.setDescription(info + " B2C. COGS");
+			va.setDateAcct(dateEnd);
+			va.setIsAdjustCOGS(p_IsAdjust);
+			va.saveEx();
+	
+			//
+			va = new MVarianceDistribution(getCtx(), 0, get_TrxName());
+			va.setAD_Org_ID(orgID);
+			va.setAD_OrgTrx_ID(orgTrxID);
+			va.setAD_PInstance_ID(getAD_PInstance_ID());
+			va.setAccount_ID(cogs_accountID);
+			va.setC_Project_ID(projectID);
+			va.setC_Campaign_ID(campaignID);
+			va.setM_Product_ID(productID);
+			if (cogsVarianceAmt.compareTo(Env.ZERO) > 0) {
+				va.setAmtAcctDr(cogsVarianceAmt.abs());
+			} else {
+				va.setAmtAcctCr(cogsVarianceAmt.abs());
+			}
+			va.setLine(new Integer(++count * 10));
+			va.setDescription(info + " B2C. COGS C-");
+			va.setDateAcct(dateEnd);
+			va.setIsAdjustCOGS(p_IsAdjust);
+			va.saveEx();
+			}
+		}
+
+	private void generate() {
+		List<MVarianceDistribution> list = new Query(getCtx(),
+				MVarianceDistribution.Table_Name, "AD_PInstance_ID = ?",
+				get_TrxName())
+				.setParameters(new Object[] { getAD_PInstance_ID() })
+				.setOrderBy("AD_Org_ID,Line").list();
+		if (!list.isEmpty()) {
+			MJournal journal = null;
+			MJournalLine line = null;
+			MAccount account = null;
+			for (MVarianceDistribution va : list) {
+				if (va.getAD_Org_ID() != journalOrgID) {
+					journalOrgID = va.getAD_Org_ID();
+
+					journal = new MJournal(getCtx(), 0, get_TrxName());
+					journal.setAD_Org_ID(journalOrgID);
+					journal.setC_AcctSchema_ID(as.get_ID());
+					journal.setDescription("Generated from process Variance Distribution "
+							+ p_DateAcct);
+					journal.setPostingType(MJournal.POSTINGTYPE_Actual);
+					journal.setC_DocType_ID(SystemID.DOCTYPE_GL_VarAdj);
+					journal.setGL_Category_ID(SystemID.GL_CATEGORY_VarAdj);
+					journal.setDateDoc(p_DateAcct);
+					journal.setDateAcct(p_DateAcct);
+					MPeriod.testPeriodOpen(getCtx(), p_DateAcct,
+							journal.getC_DocType_ID(),
+							journal.getAD_Org_ID());
+					journal.setC_Period_ID(MPeriod.getC_Period_ID(getCtx(),
+							p_DateAcct, journal.getAD_Org_ID()));
+					journal.setC_Currency_ID(as.getC_Currency_ID());
+					journal.setC_ConversionType_ID(MConversionType.TYPE_SPOT);
+					journal.saveEx();
+				}
+				line = new MJournalLine(journal);
+				line.setLine(new Integer(va.getLine()));
+				line.setDescription(va.getDescription());
+				if (va.getC_Project_ID() > 0) {
+					line.setC_Project_ID(va.getC_Project_ID());
+				}
+				line.setM_Product_ID(va.getM_Product_ID());
+				line.setC_Campaign_ID(va.getC_Campaign_ID());
+				line.setAmtSourceDr(va.getAmtAcctDr());
+				line.setAmtSourceCr(va.getAmtAcctCr());
+				line.setAmtAcct(va.getAmtAcctDr(), va.getAmtAcctCr());
+				account = getOrCreateCombination(va);
+				if (account != null) {
+					line.setC_ValidCombination_ID(account);
+				}
+				line.setAccount_ID(va.getAccount_ID());
+				line.setAD_OrgTrx_ID(va.getAD_OrgTrx_ID());
+				line.saveEx();
+			}
+		}
+	}
+
+	private MAccount getOrCreateCombination(MVarianceDistribution va) {
+		return MAccount.get(getCtx(), va.getAD_Client_ID(), va.getAD_Org_ID(),
+				as.get_ID(), va.getAccount_ID(), 0, va.getM_Product_ID(),
+				va.getC_BPartner_ID(), va.getAD_OrgTrx_ID(),
+				va.getC_LocFrom_ID(), va.getC_LocTo_ID(),
+				va.getC_SalesRegion_ID(), va.getC_Project_ID(),
+				va.getC_Campaign_ID(), va.getC_Activity_ID(), va.getUser1_ID(),
+				va.getUser2_ID(), 0, 0,get_TrxName());
+	} // getOrCreateCombination
+
+	private MAccount getOrCreateCombination(MJournalLine line, int accountID) {
+		return MAccount.get(getCtx(), line.getAD_Client_ID(),
+				line.getAD_Org_ID(), as.get_ID(), accountID,
+				line.getC_SubAcct_ID(), line.getM_Product_ID(),
+				line.getC_BPartner_ID(), line.getAD_OrgTrx_ID(),
+				line.getC_LocFrom_ID(), line.getC_LocTo_ID(),
+				line.getC_SalesRegion_ID(), line.getC_Project_ID(),
+				line.getC_Campaign_ID(), line.getC_Activity_ID(),
+				line.getUser1_ID(), line.getUser2_ID(), 0, 0,get_TrxName());
+	} // getOrCreateCombination
+
+	public List<MProductCategory> getProductCategoryStandardCosting(
+			MAcctSchema as) {
+		List<MProductCategory> results = new ArrayList<MProductCategory>();
+		List<MProductCategory> list = new Query(getCtx(),
+				MProductCategory.Table_Name, "", get_TrxName()).setClient_ID()
+				.setOnlyActiveRecords(true).list();
+		for (MProductCategory pc : list) {
+			MProductCategoryAcct pca = MProductCategoryAcct.get(getCtx(),
+					pc.getM_Product_Category_ID(), as.get_ID(), get_TrxName());
+			String costingMethod = pca.getCostingMethod();
+			if (costingMethod == null) {
+				costingMethod = as.getCostingMethod();
+			}
+			if (costingMethod
+					.equals(MProductCategoryAcct.COSTINGMETHOD_StandardCosting)) {
+				results.add(pc);
+			}
+		}
+
+		return results;
+	}
+}

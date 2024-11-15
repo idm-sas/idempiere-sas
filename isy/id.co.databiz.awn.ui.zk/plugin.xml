@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+   <extension
+         id="id.co.databiz.awn.form.GenerateTaxInvoice"
+         name="Generate Tax Invoice"
+         point="org.adempiere.webui.Form">
+      <form
+            class="id.co.databiz.awn.ui.zk.form.WGenerateTaxInvoice">
+      </form>
+   </extension>
+   <extension
+         id="id.co.databiz.awn.form.InOutGenInvoice"
+         name="InOutGenInvoice"
+         point="org.adempiere.webui.Form">
+      <form
+            class="id.co.databiz.awn.ui.zk.form.WInOutGenInvoice">
+      </form>
+   </extension>
+   <extension
+         id="id.co.databiz.awn.form.GeneratePOFromRequisition"
+         name="Generate PO From Requisition"
+         point="org.adempiere.webui.Form">
+      <form
+            class="id.co.databiz.awn.ui.zk.form.WGeneratePOFromRequisition">
+      </form>
+   </extension>
+   <extension
+         id="org.compiere.apps.form.VInOutGen"
+         point="org.adempiere.webui.Form">
+      <form
+            class="id.co.databiz.awn.ui.zk.form.WInOutGen">
+      </form>
+   </extension>
+   <extension
+         id="org.compiere.apps.form.VInvoiceGen"
+         name="Generate Invoices (manual)"
+         point="org.adempiere.webui.Form">
+      <form
+            class="id.co.databiz.awn.ui.zk.form.WInvoiceGen"
+            priority="50">
+      </form>
+   </extension>
+   <extension
+         id="org.compiere.apps.form.VAllocation"
+         point="org.adempiere.webui.Form">
+      <form
+            class="id.co.databiz.awn.ui.zk.form.WAllocation"
+            priority="50">
+      </form>
+   </extension>
+   <extension
+         id="id.co.databiz.awn.form.GenerateKwitansi"
+         name="Generate Kwitansi"
+         point="org.adempiere.webui.Form">
+      <form
+            class="id.co.databiz.awn.ui.zk.form.WGenerateKwitansi">
+      </form>
+   </extension>
+   <extension
+         id="org.eevolution.form.VOrderReceiptIssue"
+         name="Order Receipt &amp; Issue"
+         point="org.adempiere.webui.Form">
+      <form
+            class="id.co.databiz.awn.ui.zk.form.WOrderReceiptIssue">
+      </form>
+   </extension>
+   <extension
+         id="id.co.databiz.awn.form.PaymentAllocation"
+         point="org.adempiere.webui.Form">
+      <form
+            class="id.co.databiz.awn.ui.zk.form.WAllocation">
+      </form>
+   </extension>
+
+</plugin>

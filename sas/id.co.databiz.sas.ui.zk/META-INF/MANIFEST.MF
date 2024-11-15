@@ -1,0 +1,29 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: SAS Zk
+Bundle-SymbolicName: id.co.databiz.sas.ui.zk;singleton:=true
+Bundle-Version: 11.0.0.qualifier
+Bundle-Vendor: PT. Inovasi Databiz
+Bundle-RequiredExecutionEnvironment: JavaSE-17
+Bundle-ActivationPolicy: lazy
+Bundle-Activator: org.adempiere.plugin.utils.AdempiereActivator
+Require-Bundle: org.adempiere.base;bundle-version="11.0.0",
+ org.adempiere.ui;bundle-version="11.0.0",
+ org.adempiere.plugin.utils;bundle-version="11.0.0",
+ org.adempiere.ui.zk;bundle-version="11.0.0",
+ id.co.databiz.awn.base;bundle-version="8.2.0",
+ id.co.databiz.awn.ui.zk;bundle-version="8.2.0",
+ id.co.databiz.sas.base;bundle-version="11.0.0",
+ org.idempiere.zk.extra;bundle-version="11.0.0",
+ zcommon;bundle-version="9.5.0",
+ zel;bundle-version="9.5.0",
+ zhtml;bundle-version="9.5.0",
+ zk;bundle-version="9.5.0",
+ zkbind;bundle-version="9.5.0",
+ zkplus;bundle-version="9.5.0",
+ zul;bundle-version="9.5.0",
+ zweb;bundle-version="9.5.0"
+Service-Component: OSGI-INF/*.xml
+Export-Package: id.co.databiz.sas.ui.zk.factory,
+ id.co.databiz.sas.ui.zk.form,
+ id.co.databiz.sas.ui.zk.panel
