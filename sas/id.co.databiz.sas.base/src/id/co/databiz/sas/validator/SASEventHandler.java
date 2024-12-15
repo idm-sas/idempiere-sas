@@ -312,6 +312,7 @@ public class SASEventHandler extends AbstractEventHandler {
 					.list();
 				
 				if (order.isSOTrx()) {
+					/* Drop inconsistent discount list validation
 					// SAS-31 discount list must be identic
 					int discountListID = -1;
 					for (MOrderLine line : lines) {
@@ -325,6 +326,7 @@ public class SASEventHandler extends AbstractEventHandler {
 							}
 						}
 					}
+					*/
 					
 					// SAS-31 List Price Validation
 					if (order.getC_DocTypeTarget_ID() != SASSystemID.DOCTYPE_SO_RETURN_A &&
