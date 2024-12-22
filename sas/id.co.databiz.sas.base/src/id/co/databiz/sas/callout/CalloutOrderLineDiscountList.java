@@ -3,6 +3,7 @@ package id.co.databiz.sas.callout;
 import id.co.databiz.sas.model.MDiscountList;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Properties;
 
 import org.adempiere.base.IColumnCallout;
@@ -34,8 +35,7 @@ public class CalloutOrderLineDiscountList implements IColumnCallout {
 			return "";
 		}
 		Integer discountListID = (Integer) mTab.getValue("SAS_DiscountList_ID");
-//		BigDecimal priceActual = BigDecimal.valueOf(Double.valueOf(Env.getContext(ctx, WindowNo, "PriceActual")));
-//		BigDecimal priceList = BigDecimal.valueOf(Double.valueOf(Env.getContext(ctx, WindowNo, "PriceList")));
+		BigDecimal additionalDiscount = (BigDecimal) mTab.getValue("AdditionalDiscount");
 		BigDecimal priceList = (BigDecimal) mTab.getValue("PriceList");
 		int currencyID = Env.getContextAsInt(ctx, WindowNo, "C_Currency_ID");
 		int priceListID = Env.getContextAsInt(ctx, WindowNo, "M_PriceList_ID");
@@ -47,9 +47,8 @@ public class CalloutOrderLineDiscountList implements IColumnCallout {
 			precision = pl.getStandardPrecision();
 		}
 		
-		if (discountListID!=null && discountListID > 0) {
-			
-			calculatedPrice = MDiscountList.getCalculatedPrice(discountListID, priceList, precision);
+		if ((discountListID != null && discountListID > 0) || (additionalDiscount != null && additionalDiscount.signum() > 0)) {
+			calculatedPrice = MDiscountList.getCalculatedPrice(discountListID, additionalDiscount, priceList, precision);
 		}
 		mTab.setValue("PriceActual", calculatedPrice);
 		mTab.setValue("PriceEntered", calculatedPrice);
@@ -57,7 +56,7 @@ public class CalloutOrderLineDiscountList implements IColumnCallout {
 		if (priceList.compareTo(Env.ZERO) != 0) {
 			BigDecimal discount = priceList.subtract(calculatedPrice)
 					.multiply(Env.ONEHUNDRED)
-					.divide(priceList, precision, BigDecimal.ROUND_HALF_UP);
+					.divide(priceList, precision, RoundingMode.HALF_UP);
 			mTab.setValue("Discount", discount);
 		}
 		return "";
