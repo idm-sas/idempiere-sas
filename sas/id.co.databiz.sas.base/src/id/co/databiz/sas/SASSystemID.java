@@ -34,6 +34,8 @@ public class SASSystemID extends SystemID {
 	public static final int DOCTYPE_IM_KIRIM = 1000022;
 	public static final int DOCTYPE_IM_TERIMA = 550279;
 	public static final int DOCTYPE_IM_RUSAK = 550280;
+	public static final int DOCTYPE_IS_KIRIM = 2200042;
+	public static final int DOCTYPE_IS_TERIMA = 2200043;
 	
 	public static final int ORG_SUNTER = 1000001;
 	public static final int ORG_TEBET = 1000002;
