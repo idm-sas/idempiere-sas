@@ -312,6 +312,7 @@ public class SASEventHandler extends AbstractEventHandler {
 					.list();
 				
 				if (order.isSOTrx()) {
+					/* Drop inconsistent discount list validation
 					// SAS-31 discount list must be identic
 					int discountListID = -1;
 					for (MOrderLine line : lines) {
@@ -325,6 +326,7 @@ public class SASEventHandler extends AbstractEventHandler {
 							}
 						}
 					}
+					*/
 					
 					// SAS-31 List Price Validation
 					if (order.getC_DocTypeTarget_ID() != SASSystemID.DOCTYPE_SO_RETURN_A &&
@@ -1180,7 +1182,7 @@ public class SASEventHandler extends AbstractEventHandler {
 				event.getTopic().equals(IEventTopics.DOC_BEFORE_REVERSEACCRUAL)) {
 			if (po.get_TableName().equals(MMovement.Table_Name)){
 				MMovement imk = (MMovement) po;
-				if (imk.getC_DocType_ID() != SASSystemID.DOCTYPE_IM_TERIMA) {
+				if (imk.getC_DocType_ID() != SASSystemID.DOCTYPE_IM_TERIMA && imk.getC_DocType_ID() !=  SASSystemID.DOCTYPE_IS_TERIMA) {
 					MMovement imt = new Query(Env.getCtx(), MMovement.Table_Name, 
 							"Ref_Movement_ID = ? AND DocStatus NOT IN ('VO','RE')", po.get_TrxName())
 						.setParameters(imk.get_ID())

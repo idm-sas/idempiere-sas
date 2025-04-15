@@ -38,6 +38,7 @@ public class CalloutOrderLineProduct implements IColumnCallout {
 		// reset standard discount
 		mTab.setValue("Std_Discount", Env.ZERO);
 		mTab.setValue("SAS_DiscountList_ID", null);
+		mTab.setValue("AdditionalDiscount", Env.ZERO);
 					
 		if(productID > 0 && bpID > 0 && orgTrxID > 0 && soTrx.equals("Y")){
 			// SAS-64 Discount Matrix
@@ -78,7 +79,8 @@ public class CalloutOrderLineProduct implements IColumnCallout {
 						if (pl.getStandardPrecision() > precision) {
 							precision = pl.getStandardPrecision();
 						}
-						BigDecimal calculatedPrice = MDiscountList.getCalculatedPrice(discountListID, price, precision);
+						BigDecimal additionalDiscount = (BigDecimal) mTab.getValue("AdditionalDiscount"); 
+						BigDecimal calculatedPrice = MDiscountList.getCalculatedPrice(discountListID, additionalDiscount, price, precision);
 						mTab.setValue("PriceActual", calculatedPrice);
 						mTab.setValue("PriceEntered", calculatedPrice);
 						mTab.setValue("Discount", discount);
