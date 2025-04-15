@@ -16,7 +16,7 @@
  *****************************************************************************/
 package id.co.databiz.sas.model;
 
-import id.co.databiz.awn.model.MInOut;
+//import id.co.databiz.awn.model.MInOut;
 import id.co.databiz.awn.model.MPayment;
 import id.co.databiz.sas.SASSystemID;
 
@@ -866,7 +866,7 @@ public class MOrder extends org.compiere.model.MOrder implements DocAction
 			+" WHERE iol.M_InOut_ID=M_InOut.M_InOut_ID"
 			+" AND iol.C_OrderLine_ID=ol.C_OrderLine_ID"
 			+" AND ol.C_Order_ID=?)";
-		List<MInOut> list = new Query(getCtx(), I_M_InOut.Table_Name, whereClause, get_TrxName())
+		List<MInOut> list = new Query(getCtx(), MInOut.Table_Name, whereClause, get_TrxName())
 									.setParameters(get_ID())
 									.setOrderBy("M_InOut_ID DESC")
 									.list();

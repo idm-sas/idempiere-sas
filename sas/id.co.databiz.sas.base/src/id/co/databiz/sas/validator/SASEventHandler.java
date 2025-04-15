@@ -34,6 +34,7 @@ import org.compiere.acct.Doc;
 import org.compiere.model.MAcctSchema;
 import org.compiere.model.MBPartner;
 import org.compiere.model.MClient;
+import org.compiere.model.MConversionRate;
 import org.compiere.model.MDiscountSchemaBreak;
 import org.compiere.model.MDocType;
 import org.compiere.model.MInOut;
@@ -54,6 +55,7 @@ import org.compiere.model.MProduct;
 import org.compiere.model.MProductPricing;
 import org.compiere.model.MRequest;
 import org.compiere.model.MStorageOnHand;
+import org.compiere.model.MTimeExpenseLine;
 import org.compiere.model.MWarehouse;
 import org.compiere.model.PO;
 import org.compiere.model.Query;
@@ -162,6 +164,30 @@ public class SASEventHandler extends AbstractEventHandler {
 				if (rb.getAD_Org_ID() == 0) {
 					throw new FillMandatoryException("AD_Org_ID");
 				}
+			} else if (po.get_TableName().equals(MTimeExpenseLine.Table_Name)){
+				MTimeExpenseLine el = (MTimeExpenseLine) po;
+				
+				int C_Currency_From_ID = el.getC_Currency_ID();
+				int C_Currency_To_ID = Env.getContextAsInt(Env.getCtx(), Env.C_CURRENCY_ID);
+				int CurrencyType = el.get_ValueAsInt("C_ConversionType_ID");
+				
+				BigDecimal ConvertedAmt = el.getExpenseAmt();
+				
+				if (C_Currency_From_ID != C_Currency_To_ID) {
+					int AD_Client_ID = el.getAD_Client_ID();
+					int AD_Org_ID = el.getAD_Org_ID();
+					if(CurrencyType > 0) {
+					ConvertedAmt = MConversionRate.convert (Env.getCtx(),
+							ConvertedAmt, C_Currency_From_ID, C_Currency_To_ID, 
+							el.getDateExpense(), CurrencyType, AD_Client_ID, AD_Org_ID);
+					}
+					else {
+						ConvertedAmt = MConversionRate.convert (Env.getCtx(),
+								ConvertedAmt, C_Currency_From_ID, C_Currency_To_ID, 
+								el.getDateExpense(), 0, AD_Client_ID, AD_Org_ID);
+					}
+					el.setConvertedAmt(ConvertedAmt);					
+				}
 			}
 		} else if (event.getTopic().equals(IEventTopics.PO_BEFORE_DELETE)) {
 			if (po.get_TableName().equals(MRequest.Table_Name)){
@@ -224,7 +250,7 @@ public class SASEventHandler extends AbstractEventHandler {
 								docType.getDocSubTypeSO().equals(MDocType.DOCSUBTYPESO_Quotation)) &&
 						order.getQuotationOrder_ID() <= 0 &&
 						order.getC_DocTypeTarget_ID() != SASSystemID.DOCTYPE_ORDER_LAIN_LAIN &&
-						!isShipped(order) && !isInvoiced(order)) {
+						!isShipped(order) && !isInvoiced(order) && !docType.get_ValueAsBoolean("IsInternal") ) {
 					
 					try {
 						SASPromotionReward.generateRewards(order);
@@ -311,7 +337,7 @@ public class SASEventHandler extends AbstractEventHandler {
 					.setParameters(order.get_ID())
 					.list();
 				
-				if (order.isSOTrx()) {
+				if (order.isSOTrx() && !docType.get_ValueAsBoolean("IsInternal")) {
 					/* Drop inconsistent discount list validation
 					// SAS-31 discount list must be identic
 					int discountListID = -1;
@@ -655,38 +681,41 @@ public class SASEventHandler extends AbstractEventHandler {
 				
 				// SAS-82 set activity based on total discount
 				BigDecimal totalPrice = Env.ZERO;
-				
-				List<MOrderLine> orderlines = new Query(Env.getCtx(), MOrderLine.Table_Name, "C_Order_ID=?", po.get_TrxName())
-						.setParameters(order.get_ID())
-						.list();
-				
-				for (MOrderLine line : orderlines) {
-					totalPrice = totalPrice.add(line.getPriceList()
-							.multiply(line.getQtyOrdered()));
-				}
-				
 				BigDecimal discount = Env.ZERO;
-				
-				BigDecimal totallines = new Query(Env.getCtx(), MOrderLine.Table_Name, "C_Order_ID = ? ", po.get_TrxName())
-						.setOnlyActiveRecords(true)
-						.setParameters(new Object[]{order.getC_Order_ID()})
-						.sum(MOrderLine.COLUMNNAME_LineNetAmt);
-				
-//				BigDecimal totallines = order.getTotalLines();
-				
-				if (totalPrice.compareTo(Env.ZERO) != 0) {
-					discount = (totalPrice.subtract(totallines)).multiply(Env.ONEHUNDRED).divide(
-							totalPrice, 2, RoundingMode.HALF_UP);
+
+				if (order.isSOTrx() && !docType.get_ValueAsBoolean("IsInternal")) {
+					
+					List<MOrderLine> orderlines = new Query(Env.getCtx(), MOrderLine.Table_Name, "C_Order_ID=?", po.get_TrxName())
+							.setParameters(order.get_ID())
+							.list();
+					
+					for (MOrderLine line : orderlines) {
+						totalPrice = totalPrice.add(line.getPriceList()
+								.multiply(line.getQtyOrdered()));
+					}
+					
+					
+					BigDecimal totallines = new Query(Env.getCtx(), MOrderLine.Table_Name, "C_Order_ID = ? ", po.get_TrxName())
+							.setOnlyActiveRecords(true)
+							.setParameters(new Object[]{order.getC_Order_ID()})
+							.sum(MOrderLine.COLUMNNAME_LineNetAmt);
+					
+	//				BigDecimal totallines = order.getTotalLines();
+					
+					if (totalPrice.compareTo(Env.ZERO) != 0) {
+						discount = (totalPrice.subtract(totallines)).multiply(Env.ONEHUNDRED).divide(
+								totalPrice, 2, RoundingMode.HALF_UP);
+					}
+					order.set_ValueOfColumn("TotalDiscount", discount);
+					if (discount.compareTo(BigDecimal.valueOf(15)) <= 0) {
+						order.setC_Activity_ID(SASSystemID.ACTIVITY_DISC01);
+					} else if (discount.compareTo(BigDecimal.valueOf(25)) <= 0) {
+						order.setC_Activity_ID(SASSystemID.ACTIVITY_DISC02);
+					} else {
+						order.setC_Activity_ID(SASSystemID.ACTIVITY_DISC03);
+					}
+					order.saveEx();
 				}
-				order.set_ValueOfColumn("TotalDiscount", discount);
-				if (discount.compareTo(BigDecimal.valueOf(15)) <= 0) {
-					order.setC_Activity_ID(SASSystemID.ACTIVITY_DISC01);
-				} else if (discount.compareTo(BigDecimal.valueOf(25)) <= 0) {
-					order.setC_Activity_ID(SASSystemID.ACTIVITY_DISC02);
-				} else {
-					order.setC_Activity_ID(SASSystemID.ACTIVITY_DISC03);
-				}
-				order.saveEx();
 				//END SAS-82
 				
 				//https://databiz.atlassian.net/browse/SAS-255 Validasi / Cek Disc K Saldo pada Sales Order
@@ -1182,7 +1211,7 @@ public class SASEventHandler extends AbstractEventHandler {
 				event.getTopic().equals(IEventTopics.DOC_BEFORE_REVERSEACCRUAL)) {
 			if (po.get_TableName().equals(MMovement.Table_Name)){
 				MMovement imk = (MMovement) po;
-				if (imk.getC_DocType_ID() != SASSystemID.DOCTYPE_IM_TERIMA && imk.getC_DocType_ID() !=  SASSystemID.DOCTYPE_IS_TERIMA) {
+				if (imk.getC_DocType_ID() != SASSystemID.DOCTYPE_IM_TERIMA) {
 					MMovement imt = new Query(Env.getCtx(), MMovement.Table_Name, 
 							"Ref_Movement_ID = ? AND DocStatus NOT IN ('VO','RE')", po.get_TrxName())
 						.setParameters(imk.get_ID())
@@ -1218,11 +1247,14 @@ public class SASEventHandler extends AbstractEventHandler {
 		registerTableEvent(IEventTopics.PO_BEFORE_NEW, MRequest.Table_Name);
 		registerTableEvent(IEventTopics.PO_BEFORE_NEW, MPaymentAllocate.Table_Name);
 		registerTableEvent(IEventTopics.PO_BEFORE_NEW, MRequestBundle.Table_Name);
+		registerTableEvent(IEventTopics.PO_BEFORE_NEW, MTimeExpenseLine.Table_Name);
 		
 		registerTableEvent(IEventTopics.PO_BEFORE_CHANGE, MDiscountSchemaBreak.Table_Name);
 		registerTableEvent(IEventTopics.PO_BEFORE_CHANGE, MRequest.Table_Name);
 		registerTableEvent(IEventTopics.PO_BEFORE_CHANGE, MPaymentAllocate.Table_Name);
 		registerTableEvent(IEventTopics.PO_BEFORE_CHANGE, MOrder.Table_Name);
+		registerTableEvent(IEventTopics.PO_BEFORE_CHANGE, MTimeExpenseLine.Table_Name);
+
 		
 		registerTableEvent(IEventTopics.PO_BEFORE_DELETE, MRequest.Table_Name);
 		

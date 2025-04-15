@@ -44,6 +44,16 @@ public class AWNSysConfig extends MSysConfig {
 	
 	public static final String ISY_GENERATE_INVOICE_CHECK_RMA_INOUTLINE = "ISY_GENERATE_INVOICE_CHECK_RMA_INOUTLINE"; //for auto approval
 	
+	public static final String ISY_GENERATE_TAXINVOICE_OVER_MAX_VALUE = "ISY_GENERATE_TAXINVOICE_OVER_MAX_VALUE"; 
+	//Brilly ISY-37 > Option 1 = Set Exception di MWFActivity ACTION_AppsProcess (A). Option 2 Update Invoice Description update errornya (B)
+
+	public static final String ISY_REQUEST_SEND_EMAIL_ON_UPDATE = "ISY_REQUEST_SEND_EMAIL_ON_UPDATE";
+	
+	public static final String ISY_TRADE_DISCOUNT_VENDOR_PRODUCTTYPE_ITEM = "ISY_TRADE_DISCOUNT_VENDOR_PRODUCTTYPE_ITEM";
+	
+	public static final String ISY_MAX_PANEL_TABLESIZE = "ISY_MAX_PANEL_TABLESIZE";
+
+	
 	//ISY-375
 	public static int DOCTYPE_CC_MaterialReceipt = 900001;
 	public static int DOCTYPE_CC_ComponentIssue = 900002;

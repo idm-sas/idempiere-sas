@@ -1,6 +1,7 @@
 
 package id.co.databiz.awn.process;
 
+import id.co.databiz.awn.model.AWNSysConfig;
 import id.co.databiz.awn.model.MTaxInvoice;
 import id.co.databiz.awn.model.SystemID;
 import id.co.databiz.awn.model.wrapper.ICBPartner;
@@ -18,6 +19,7 @@ import org.compiere.model.MBPartner;
 import org.compiere.model.MDocType;
 import org.compiere.model.MInvoice;
 import org.compiere.model.MPeriod;
+import org.compiere.model.MSysConfig;
 import org.compiere.model.Query;
 import org.compiere.process.ProcessInfoParameter;
 import org.compiere.process.SvrProcess;
@@ -186,7 +188,50 @@ public class GenerateTaxInvoice extends SvrProcess
 			taxInvoice.setTaxAmt(taxInvoice.getTaxAmt().add(taxAmt));
 			taxInvoice.saveEx();
 			
+			// check DocumentNo not exceed the max value
+			String sqltax = "SELECT y.MaxValue "
+							+ "FROM AD_Sequence_No y, AD_Sequence s "
+							+ "WHERE y.AD_Sequence_ID = s.AD_Sequence_ID "
+							+ "AND y.AD_Sequence_ID = ? "
+							+ "AND s.AD_Client_ID = ? "
+							+ "AND y.CalendarYearMonth = ? "
+							+ "AND s.IsActive='Y' AND s.IsTableID='N' AND s.IsAutoSequence='Y' "
+							+ "ORDER BY s.AD_Client_ID DESC";
+			int maxValue = DB.getSQLValue(get_TrxName(), sqltax, taxInvoice.getC_DocType().getDocNoSequence_ID(),getAD_Client_ID(),new SimpleDateFormat("yyyy").format(invoice.getDateInvoiced()));
+			int documentNumber = 0;
+						
+			if(maxValue > 0){
+							
+				try{
+					documentNumber = Integer.parseInt(taxInvoice.getDocumentNo().trim());
+				} catch(NumberFormatException e){
+					throw new AdempiereException("Invalid DocumentNo Format", e);
+				}
+						
+				if(documentNumber > maxValue){
+					String desc = "";
+					if(invoice.getDescription()!= null) {
+						desc = invoice.getDescription();
+					}
+					if (MSysConfig.getValue(AWNSysConfig.ISY_GENERATE_TAXINVOICE_OVER_MAX_VALUE, "B").equals("B")) {
+						invoice.setDescription(desc + "Cannot Create TaxInvoice - DocumentNo exceeds maximum value");
+						invoice.saveEx();
+						taxInvoice.deleteEx(true);
+					}
+					throw new AdempiereException("Cannot Create TaxInvoice - DocumentNo exceeds maximum value");
+				}
+			}
+			
 			invoiceCustom.setZ_TaxInvoice_ID(taxInvoice.get_ID());
+			invoiceCustom.setTaxInvoiceNo(taxInvoice.getDocumentNo());
+			
+			String idesc = "";
+			if (invoice.getDescription() != null && invoice.getDescription().contains("Cannot Create TaxInvoice - DocumentNo exceeds maximum value")) {
+			    idesc = invoice.getDescription();
+			    idesc = idesc.replace("Cannot Create TaxInvoice - DocumentNo exceeds maximum value", "").replaceAll("\\s{2,}", " ").trim();
+			    invoice.setDescription(idesc);
+			}
+			
 			invoice.saveEx();
 			
 			if(m_taxInvoice == null || taxInvoice.get_ID() != m_taxInvoice.get_ID()){

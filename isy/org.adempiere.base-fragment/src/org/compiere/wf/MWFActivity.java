@@ -28,6 +28,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Savepoint;
 import java.sql.Timestamp;
+import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -35,6 +36,8 @@ import java.util.List;
 import java.util.Properties;
 import java.util.StringTokenizer;
 import java.util.logging.Level;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.adempiere.exceptions.AdempiereException;
 import org.adempiere.model.POWrapper;
@@ -1166,39 +1169,57 @@ public class MWFActivity extends X_AD_WF_Activity implements Runnable
 		{
 			if (log.isLoggable(Level.FINE)) log.fine("Process:AD_Process_ID=" + m_node.getAD_Process_ID());
 			//	Process
+			boolean success = false;
 			MProcess process = MProcess.get(getCtx(), m_node.getAD_Process_ID());
 			MPInstance pInstance = new MPInstance(process, getRecord_ID());
-			fillParameter(pInstance, trx);
-			//
-			ProcessInfo pi = new ProcessInfo (m_node.getName(true), m_node.getAD_Process_ID(),
-				getAD_Table_ID(), getRecord_ID());
-			
-			//check record id overwrite
-			MWFNodePara[] nParams = m_node.getParameters();
-			for(MWFNodePara p : nParams) 
-			{
-				if (p.getAD_Process_Para_ID() == 0 && p.getAttributeName().equalsIgnoreCase("Record_ID") && !Util.isEmpty(p.getAttributeValue(), true)) 
+			pInstance.setIsProcessing(true);
+			pInstance.saveEx();
+			try {
+				fillParameter(pInstance, trx);
+				//
+				ProcessInfo pi = new ProcessInfo (m_node.getName(true), m_node.getAD_Process_ID(),
+					getAD_Table_ID(), getRecord_ID());
+				
+				//check record id overwrite
+				MWFNodePara[] nParams = m_node.getParameters();
+				for(MWFNodePara p : nParams) 
 				{
-					try 
+					if (p.getAD_Process_Para_ID() == 0 && p.getAttributeName().equalsIgnoreCase("Record_ID") && !Util.isEmpty(p.getAttributeValue(), true)) 
 					{
-						Object value = parseNodeParaAttribute(p);
-						if (value == p || value == null)
-							break;
-						int recordId = Integer.valueOf(value.toString());
-						pi.setRecord_ID(recordId);
+						try 
+						{
+							Object value = parseNodeParaAttribute(p);
+							if (value == p || value == null)
+								break;
+							int recordId = Integer.valueOf(value.toString());
+							pi.setRecord_ID(recordId);
+						}
+						catch (NumberFormatException e)
+						{
+							log.log(Level.WARNING, e.getMessage(), e);
+						}
+						break;
 					}
-					catch (NumberFormatException e)
-					{
-						log.log(Level.WARNING, e.getMessage(), e);
-					}
-					break;
 				}
+	
+				pi.setAD_User_ID(getAD_User_ID());
+				pi.setAD_Client_ID(getAD_Client_ID());
+				pi.setAD_PInstance_ID(pInstance.getAD_PInstance_ID());
+			    success = process.processItWithoutTrxClose(pi, trx);
+			    if (MSysConfig.getValue(AWNSysConfig.ISY_GENERATE_TAXINVOICE_OVER_MAX_VALUE, "B").equals("A")
+			    		&& process.getAD_Process_ID() == 550015) { //sementara hanya untuk proses tax invoice {
+				    if (!success)
+					{
+						throw new Exception(pi.getSummary());
+					}
+			    }
+				setTextMsg(pi.getSummary());
+				return success;
 			}
-			
-			pi.setAD_User_ID(getAD_User_ID());
-			pi.setAD_Client_ID(getAD_Client_ID());
-			pi.setAD_PInstance_ID(pInstance.getAD_PInstance_ID());
-			return process.processItWithoutTrxClose(pi, trx);
+			finally {
+				pInstance.setIsProcessing(false);
+				pInstance.saveEx();
+			}
 		}
 
 		/******	Start Task (Probably redundant;
@@ -1402,11 +1423,12 @@ public class MWFActivity extends X_AD_WF_Activity implements Runnable
 									break;
 								}
 							}
-							
-							if( resp != null && resp.getAD_WF_Responsible_ID() > 0 ) {
-								setAD_WF_Responsible_ID(resp.getAD_WF_Responsible_ID());
-								setAD_User_ID(resp.getAD_User_ID());
-							}
+						}
+						
+						
+						if( resp != null && resp.getAD_WF_Responsible_ID() > 0 ) {
+							setAD_WF_Responsible_ID(resp.getAD_WF_Responsible_ID());
+							setAD_User_ID(resp.getAD_User_ID());
 						}
 					}
 					else if(resp.isManual()) {
@@ -2260,6 +2282,27 @@ public class MWFActivity extends X_AD_WF_Activity implements Runnable
 		for (int i = 0; i < events.length; i++)
 		{
 			MWFEventAudit audit = events[i];
+			//Permintaan SAS https://databiz.atlassian.net/browse/HELP-9934
+			String txtmsg = audit.getTextMsg();
+			if (txtmsg != null && !txtmsg.isEmpty()) {
+				// Regex to find numbers with a decimal point
+		        Pattern pattern = Pattern.compile("(\\d+\\.\\d+)");
+		        Matcher matcher = pattern.matcher(txtmsg);
+	
+		        // Format the number if found
+		        if (matcher.find()) {
+		            String numberStr = matcher.group(1);
+		            double numbersummarry = Double.parseDouble(numberStr);
+	
+		            // Format the number with commas
+		            DecimalFormat formatter = new DecimalFormat("#,###.00");
+		            String formattedNumber = formatter.format(numbersummarry);
+	
+		            // Replace the original number with the formatted one
+		            txtmsg = txtmsg.replace(numberStr, formattedNumber);
+		        }
+			}
+			
 		//	sb.append("<p style=\"width:400\">");
 			sb.append("<p>");
 			sb.append(format.format(audit.getCreated()))
@@ -2267,7 +2310,9 @@ public class MWFActivity extends X_AD_WF_Activity implements Runnable
 				.append(getHTMLpart("b", audit.getNodeName()))
 				.append(": ")
 				.append(getHTMLpart(null, audit.getDescription()))
-				.append(getHTMLpart("i", audit.getTextMsg()));
+//				.append(getHTMLpart("i", audit.getTextMsg()));
+				.append(getHTMLpart("i", txtmsg));
+
 			sb.append("</p>");
 		}
 		return sb.toString();
@@ -2635,6 +2680,7 @@ public class MWFActivity extends X_AD_WF_Activity implements Runnable
 				pi.setIsBatch(true);
 				pi.setPrintPreview(false);
 				pi.setExport(true);
+				pi.setAD_Client_ID(getAD_Client_ID());;
 				
 				ServerProcessCtl.process(pi, null);
 				
@@ -2643,5 +2689,13 @@ public class MWFActivity extends X_AD_WF_Activity implements Runnable
 				return doc.createPDF();
 			}
 		}
+	}
+	
+	public String getProcessMsg() {
+
+		if (m_process == null)
+			return null;
+
+		return m_process.getProcessMsg();
 	}
 }	//	MWFActivity

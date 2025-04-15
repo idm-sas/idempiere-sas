@@ -369,11 +369,45 @@ public class GenerateTaxInvoice extends GenForm
 							taxInvoice.setTaxAmt(taxInvoice.getTaxAmt().add(taxAmt));
 							
 							taxInvoice.saveEx();
+							
+							// check DocumentNo not exceed the max value
+							String sqltax = "SELECT y.MaxValue "
+														+ "FROM AD_Sequence_No y, AD_Sequence s "
+														+ "WHERE y.AD_Sequence_ID = s.AD_Sequence_ID "
+														+ "AND y.AD_Sequence_ID = ? "
+														+ "AND s.AD_Client_ID = ? "
+														+ "AND y.CalendarYearMonth = ? "
+														+ "AND s.IsActive='Y' AND s.IsTableID='N' AND s.IsAutoSequence='Y' "
+														+ "ORDER BY s.AD_Client_ID DESC";
+							int maxValue = DB.getSQLValue(null, sqltax, taxInvoice.getC_DocType().getDocNoSequence_ID(),invoice.getAD_Client_ID(),new SimpleDateFormat("yyyy").format(invoice.getDateInvoiced()));
+							int documentNumber = 0;
+													
+							if(maxValue > 0){
+														
+								try{
+									documentNumber = Integer.parseInt(taxInvoice.getDocumentNo().trim());
+								} catch(NumberFormatException e){
+									throw new AdempiereException("Invalid DocumentNo Format", e);
+								}
+													
+								if(documentNumber > maxValue){
+									throw new AdempiereException("Cannot Create TaxInvoice - DocumentNo exceeds maximum value");
+								}
+							}
+							
 							if(!documentNo.equals(taxInvoice.getDocumentNo())){
 								documentNo = taxInvoice.getDocumentNo();
 								info.append(taxInvoice.getDocumentNo());
 								info.append("\n");
 							}
+							
+							String idesc = "";
+							if (invoice.getDescription() != null && invoice.getDescription().contains("Cannot Create TaxInvoice - DocumentNo exceeds maximum value")) {
+							    idesc = invoice.getDescription();
+							    idesc = idesc.replace("Cannot Create TaxInvoice - DocumentNo exceeds maximum value", "").replaceAll("\\s{2,}", " ").trim();
+							    invoice.setDescription(idesc);
+							}
+							
 							invoiceCustom.setZ_TaxInvoice_ID(taxInvoice.getZ_TaxInvoice_ID());
 							invoice.saveEx();
 						}

@@ -6,20 +6,28 @@ import java.util.Properties;
 import org.adempiere.base.IColumnCallout;
 import org.compiere.model.GridField;
 import org.compiere.model.GridTab;
+import org.compiere.model.MClient;
 import org.compiere.model.MOrderLine;
+import org.compiere.util.Env;
 
 public class CalloutInvoiceLineOrderLine implements IColumnCallout {
 
 	@Override
 	public String start(Properties ctx, int WindowNo, GridTab mTab,
 			GridField mField, Object value, Object oldValue) {
-		if(value==null){
+		if (value == null) {
 			return "";
 		}
 		Integer orderLineID = (Integer) value;
+		int Client_ID = Env.getContextAsInt(ctx, WindowNo, "AD_Client_ID");
 		if(orderLineID>0){
 			// AWN-30 AWN-32 AWN-109
 			MOrderLine orderLine = new MOrderLine(ctx, orderLineID, null);
+			
+			MClient client = new MClient(ctx, Client_ID, null);
+			
+			if (!client.getName().toLowerCase().contains("sas")) {
+			
 			BigDecimal qtyToInvoice = orderLine.getQtyOrdered().subtract(orderLine.getQtyInvoiced());
 			BigDecimal qtyEntered = qtyToInvoice;
 			if (orderLine.getQtyEntered().compareTo(orderLine.getQtyOrdered()) != 0)
@@ -28,6 +36,7 @@ public class CalloutInvoiceLineOrderLine implements IColumnCallout {
 					.divide(orderLine.getQtyOrdered(), 12, BigDecimal.ROUND_HALF_UP);
 			mTab.setValue("QtyEntered", qtyEntered);
 			mTab.setValue("QtyInvoiced", qtyToInvoice);
+			}
 			
 			mTab.setValue("Description", orderLine.getDescription());
 			if(orderLine.getM_Product_ID()==0){
