@@ -1,0 +1,21 @@
+# Atur semua file sebagai text file
+* text=auto
+
+# Pastikan file Java pakai LF (Unix style)
+*.java text eol=lf
+
+# XML & config
+*.xml text eol=lf
+*.mf text eol=lf
+*.properties text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Script
+*.sh text eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Markdown / txt
+*.md text eol=lf
+*.txt text eol=lf
