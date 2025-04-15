@@ -157,17 +157,17 @@ public class InfoProductWindow extends InfoWindow {
 	@Override
 	protected void renderContentPane(Center center) {
 		ColumnInfo[] s_layoutWarehouse = new ColumnInfo[]{
-        		new ColumnInfo(Msg.translate(Env.getCtx(), "Warehouse"), "Warehouse", String.class),
-        		new ColumnInfo(Msg.translate(Env.getCtx(), "QtyAvailable"), "sum(QtyAvailable)-MovementQty", Double.class),
-        		new ColumnInfo(Msg.translate(Env.getCtx(), "QtyOnHand"), "sum(QtyOnHand)", Double.class),
-        		new ColumnInfo(Msg.translate(Env.getCtx(), "QtyReserved"), "sum(QtyReserved)+MovementQty", Double.class)};
+        		new ColumnInfo(Msg.translate(Env.getCtx(), "Warehouse"), "WarehouseName", String.class),
+        		new ColumnInfo(Msg.translate(Env.getCtx(), "QtyAvailable"), "QtyAvailable", Double.class),
+        		new ColumnInfo(Msg.translate(Env.getCtx(), "QtyOnHand"), "QtyOnHand", Double.class),
+        		new ColumnInfo(Msg.translate(Env.getCtx(), "QtyReserved"), "QtyReserved", Double.class),
+        		new ColumnInfo(Msg.translate(Env.getCtx(), "QtyBuffer"), "QtyBuffer", Double.class)};
         /**	From Clause							*/
-        String s_sqlFrom = " M_PRODUCT_STOCK_V ";
+        String s_sqlFrom = " M_ProductInfo_WH_V ";
         /** Where Clause						*/
         String s_sqlWhere = "M_Product_ID = ?";
         warehouseTbl = ListboxFactory.newDataTableAutoSize();
-        m_sqlWarehouse = warehouseTbl.prepareTable(s_layoutWarehouse, s_sqlFrom, s_sqlWhere, false, "M_PRODUCT_STOCK_V");
-		m_sqlWarehouse += " GROUP BY Warehouse,MovementQty";		
+        m_sqlWarehouse = warehouseTbl.prepareTable(s_layoutWarehouse, s_sqlFrom, s_sqlWhere, false, "M_ProductInfo_WH_V");		
 		warehouseTbl.setMultiSelection(false);
 		warehouseTbl.setShowTotals(true);
 		warehouseTbl.autoSize();

@@ -1,6 +1,7 @@
 package id.co.databiz.sas.model;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.sql.ResultSet;
 import java.util.List;
 import java.util.Properties;
@@ -24,9 +25,18 @@ public class MDiscountList extends X_SAS_DiscountList{
 	}
 	
 	public static BigDecimal getCalculatedPrice(int SAS_DiscountList_ID, BigDecimal price, int precision) {
+		return getCalculatedPrice(SAS_DiscountList_ID, Env.ZERO, price, precision);
+	}
+	
+	public static BigDecimal getCalculatedPrice(int SAS_DiscountList_ID, BigDecimal additionalDiscount, BigDecimal price, int precision) {
 		if (price.compareTo(Env.ZERO) == 0) {
 			return Env.ZERO;
 		}
+		
+		if (additionalDiscount == null) {
+			additionalDiscount = Env.ZERO;
+		}
+		
 		BigDecimal calculatedPrice = price;
 		List<MDiscountSchemaBreakLine> lineList = new Query(Env.getCtx(), MDiscountSchemaBreakLine.Table_Name, 
 				"SAS_DiscountList_ID = ?", null)
@@ -35,9 +45,15 @@ public class MDiscountList extends X_SAS_DiscountList{
 			.setOrderBy("SeqNo")
 			.list();
 		for (MDiscountSchemaBreakLine line : lineList) {
-			calculatedPrice = calculatedPrice.subtract(calculatedPrice.multiply(line.getDiscount()).divide(Env.ONEHUNDRED, 8, BigDecimal.ROUND_HALF_UP));
+			calculatedPrice = calculatedPrice.subtract(calculatedPrice.multiply(line.getDiscount()).divide(Env.ONEHUNDRED, 8, RoundingMode.HALF_UP));
 		}
-		calculatedPrice = calculatedPrice.setScale(precision,BigDecimal.ROUND_HALF_UP);
+		
+		// add additional discount if any
+		if (additionalDiscount.signum() > 0) {
+			calculatedPrice = calculatedPrice.subtract(calculatedPrice.multiply(additionalDiscount).divide(Env.ONEHUNDRED, 8, RoundingMode.HALF_UP));
+		}
+		
+		calculatedPrice = calculatedPrice.setScale(precision,RoundingMode.HALF_UP);
 		return calculatedPrice;
 	}
 }

@@ -102,6 +102,12 @@
             tableName="C_OrderLine">
       </callout>
       <callout
+            class="id.co.databiz.sas.callout.CalloutOrderLineDiscountList"
+            columnName="AdditionalDiscount"
+            priority="50"
+            tableName="C_OrderLine">
+      </callout>
+      <callout
             class="id.co.databiz.sas.callout.CalloutOrderSetDeliveryRule"
             columnName="C_DocTypeTarget_ID"
             priority="50"

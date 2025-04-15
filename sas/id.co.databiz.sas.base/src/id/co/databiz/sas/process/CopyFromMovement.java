@@ -12,6 +12,7 @@ import org.compiere.model.MBPartner;
 import org.compiere.model.MLocator;
 import org.compiere.model.MMovement;
 import org.compiere.model.MMovementLine;
+import org.compiere.model.MOrder;
 import org.compiere.model.PO;
 import org.compiere.model.Query;
 import org.compiere.process.ProcessInfoParameter;
@@ -95,8 +96,8 @@ public class CopyFromMovement extends SvrProcess
 			if (!from.getDocStatus().equals(MMovement.DOCSTATUS_Completed)) {
 				throw new AdempiereException("Document status must be Completed");
 			}
-			if (from.getC_DocType_ID() != SASSystemID.DOCTYPE_IM_KIRIM) {
-				throw new AdempiereException("Document type must be IM Kirim");
+			if (from.getC_DocType_ID() != SASSystemID.DOCTYPE_IM_KIRIM && from.getC_DocType_ID() != SASSystemID.DOCTYPE_IS_KIRIM) {
+				throw new AdempiereException("Document type must be IM Kirim / ISK");
 			}
 			if (from.getAD_Org_ID() != bp.get_ValueAsInt("AD_OrgBP_ID")) {
 				throw new AdempiereException("Invalid BP organization");
@@ -113,7 +114,35 @@ public class CopyFromMovement extends SvrProcess
 			throw new IllegalArgumentException("Source Inventory Move not found");
 		//
 		
-		int no = copyLinesFrom (from, to);		//	no Attributes
+		// IST set order and locator
+		int locatorToID = 0;
+		int orderID = from.get_ValueAsInt("C_Order_ID");
+		if (orderID > 0) {
+			to.set_ValueOfColumn("C_Order_ID", orderID);
+			to.saveEx();
+			
+			// override locators if not in destination yet
+			MOrder order = new MOrder(getCtx(), orderID, get_TrxName());
+			if (order.getAD_Org_ID() != to.getAD_Org_ID()) {
+				
+				// get suitable locator
+				StringBuilder sql = new StringBuilder();
+				sql.append("SELECT l.M_Locator_ID FROM M_Locator l ");
+				sql.append("INNER JOIN M_Warehouse wh ON (wh.M_Warehouse_ID = l.M_Warehouse_ID) ");
+				sql.append("INNER JOIN M_LocatorType lt ON (lt.M_LocatorType_ID = l.M_LocatorType_ID) ");
+				sql.append("WHERE wh.IsActive = 'Y' AND l.IsActive = 'Y' AND lt.IsActive = 'Y' ");
+				sql.append("AND lt.IsAvailableForReservation = 'N' AND lt.IsAvailableForShipping = 'N' ");
+				sql.append("AND wh.AD_Org_ID = ? ");
+				sql.append("ORDER BY l.IsDefault DESC ");
+				sql.append("LIMIT 1 "); 
+				locatorToID = DB.getSQLValueEx(to.get_TrxName(), sql.toString(), to.getAD_Org_ID());
+				if (locatorToID <= 0) {
+					throw new AdempiereException("No suitable locator found for IST (Not for reservation and shipping)");
+				}
+			}
+		}
+		
+		int no = copyLinesFrom (from, to, locatorToID);		//	no Attributes
 		if (counter > 0) {
 			to.set_ValueNoCheck("Ref_Movement_ID", from.getM_Movement_ID());
 			to.saveEx();
@@ -125,7 +154,7 @@ public class CopyFromMovement extends SvrProcess
 		return "@Copied@=" + counter;
 	}	//	doIt
 	
-	private int copyLinesFrom(MMovement from, MMovement to){
+	private int copyLinesFrom(MMovement from, MMovement to, int locatorToID) {
 		List<MMovementLine> lines = new Query(getCtx(), MMovementLine.Table_Name, "M_Movement_ID=?", get_TrxName())
 			.setOnlyActiveRecords(true)
 			.setParameters(from.get_ID())
@@ -142,7 +171,10 @@ public class CopyFromMovement extends SvrProcess
 				lineTo.setM_Locator_ID(pLocatorID);
 			else
 				lineTo.setM_Locator_ID(lineFrom.getM_LocatorTo_ID());
-			lineTo.setM_LocatorTo_ID(pLocatorToID);
+			if (locatorToID > 0)
+				lineTo.setM_LocatorTo_ID(locatorToID);
+			else
+				lineTo.setM_LocatorTo_ID(pLocatorToID);
 			
 			MLocator locatorSource = new MLocator(getCtx(), lineFrom.getM_Locator_ID(), get_TrxName());
 			MLocator locatorDestination = new MLocator(getCtx(), lineTo.getM_LocatorTo_ID(), get_TrxName());
