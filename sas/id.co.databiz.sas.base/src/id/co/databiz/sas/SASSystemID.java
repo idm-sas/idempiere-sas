@@ -19,17 +19,23 @@ public class SASSystemID extends SystemID {
 	public static final int DOCTYPE_REQUEST_STOCK_B = 550270;
 	public static final int DOCTYPE_SO_RETURN_A = 550266;
 	public static final int DOCTYPE_SO_RETURN_B = 550291;
+	public static final int DOCTYPE_SO_SF_A = 1000047;
+	public static final int DOCTYPE_SO_SF_B = 1000046;
 	public static final int DOCTYPE_ORDER_LAIN_LAIN = 550297;
 	public static final int DOCTYPE_SHIPMENT_SCN = 550292;
 	public static final int DOCTYPE_SHIPMENT_SCT = 550268;
 	public static final int DOCTYPE_CUSTOMER_RMA_A = 1000029;
 	public static final int DOCTYPE_CUSTOMER_RMA_B = 550287;
+	public static final int DOCTYPE_SHIPMENT_SSN = 1000044;
+	public static final int DOCTYPE_SHIPMENT_SST = 1000045;
 	public static final int DOCTYPE_VENDOR_RMA = 1000019;
 	public static final int DOCTYPE_AR_INVOICE_TAX = 1000002;
 	public static final int DOCTYPE_AR_INVOICE_NON_TAX = 1000003;
 	public static final int DOCTYPE_AR_INVOICE_FCN = 550294;
 	public static final int DOCTYPE_AR_INVOICE_FCT = 550293;
 	public static final int DOCTYPE_AR_INVOICE_FLL = 550296;
+	public static final int DOCTYPE_AR_INVOICE_SF_TAX = 1000042;
+	public static final int DOCTYPE_AR_INVOICE_SF_NON_TAX = 1000043;
 	public static final int DOCTYPE_AP_INVOICE = 1000005;
 	public static final int DOCTYPE_IM_KIRIM = 1000022;
 	public static final int DOCTYPE_IM_TERIMA = 550279;
@@ -52,6 +58,7 @@ public class SASSystemID extends SystemID {
 	public static final int DJ_STATUS_DELIVERED = 1000001;
 	public static final int DJ_STATUS_DELIVERED_WITH_NOTE = 1000002;
 	public static final int DJ_STATUS_NOT_DELIVERED = 1000003;
+	public static final int DJ_STATUS_ON_DELIVERY = 2200001;
 	
 	public static final int STD_STATUS_DRAFTED = 1000004;
 	public static final int STD_STATUS_BRANCH_MANAGER = 1000005;
@@ -80,4 +87,12 @@ public class SASSystemID extends SystemID {
 	public static final int DISCOUNT_LIST_0 = 1000000;
 	
 	public static final int WINDOW_CUSTOMER_RMA = 320;
+	
+	public static final int CHARGE_DISKON_PENJUALAN_PAKET = 2200040;
+	
+	public final static int UOM_EACH = 100;
+	
+	public static final String DJ_DOCTYPE_INVOICE = "Invoice";
+    public static final String DJ_DOCTYPE_SURAT_JALAN = "Surat Jalan";
+    public static final String DJ_DOCTYPE_SURAT_JALAN_PARTIAL = "Surat Jalan Partial";
 }
