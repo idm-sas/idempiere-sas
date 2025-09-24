@@ -1673,6 +1673,7 @@ public class MOrder extends org.compiere.model.MOrder implements DocAction
 				if (log.isLoggable(Level.FINE)) log.fine(product.getName());
 				//	New Lines
 				int lineNo = line.getLine ();
+				BigDecimal totalLineNetAmt = Env.ZERO;
 				//find default BOM with valid dates and to this product
 				/*/MPPProductBOM bom = MPPProductBOM.get(product, getAD_Org_ID(),getDatePromised(), get_TrxName());
 				if(bom != null)
@@ -1708,7 +1709,29 @@ public class MOrder extends org.compiere.model.MOrder implements DocAction
 					newLine.set_ValueOfColumn("IsAffectPromo", "N");
 					newLine.set_ValueOfColumn("SAS_DiscountList_ID", SASSystemID.DISCOUNT_LIST_0);
 					newLine.save(get_TrxName());
+					
+					BigDecimal lineNetAmt = newLine.getLineNetAmt();
+                    if (lineNetAmt != null) {
+                        totalLineNetAmt = totalLineNetAmt.add(lineNetAmt);
+                    }
 				}
+				
+				BigDecimal totalDiscountBOM = totalLineNetAmt.subtract(line.getPriceList());
+				MOrderLine orderLine = new MOrderLine(this);
+				orderLine.setLine(lineNo);
+				orderLine.setC_Charge_ID(SASSystemID.CHARGE_DISKON_PENJUALAN_PAKET);
+				orderLine.setQty(Env.ONE);
+				orderLine.setC_UOM_ID(SASSystemID.UOM_EACH);
+				if (line.getDescription() != null) {
+					orderLine.setDescription(line.getDescription());
+				}
+				orderLine.setPriceEntered(totalDiscountBOM.negate());
+				orderLine.setPriceActual(totalDiscountBOM.negate());
+				orderLine.setLineNetAmt(totalDiscountBOM.negate());
+				orderLine.set_ValueOfColumn("Source_OrderLine_ID", line.get_ID());
+				orderLine.setDiscount(Env.ZERO);
+				orderLine.setC_Project_ID(line.getC_Project_ID());
+				orderLine.save(get_TrxName());
 				
 				//	Convert into Comment Line
 				line.set_ValueOfColumn("RelatedProduct_ID", line.getM_Product_ID());
