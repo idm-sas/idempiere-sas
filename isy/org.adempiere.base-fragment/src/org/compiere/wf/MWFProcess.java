@@ -58,8 +58,10 @@ public class MWFProcess extends X_AD_WF_Process
 	public MWFProcess (Properties ctx, int AD_WF_Process_ID, String trxName)
 	{
 		super (ctx, AD_WF_Process_ID, trxName);
-		if (AD_WF_Process_ID == 0)
-			throw new IllegalArgumentException ("Cannot create new WF Process directly");
+		if (AD_WF_Process_ID == 0) {
+//			throw new IllegalArgumentException ("Cannot create new WF Process directly"); //clean log + bug di sas11 wf jalan ketika login not found the problem :(
+			return;
+		}
 		m_state = new StateEngine (getWFState());
 	}	//	MWFProcess
 

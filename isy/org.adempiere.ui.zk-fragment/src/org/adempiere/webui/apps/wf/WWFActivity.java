@@ -65,6 +65,7 @@ import org.compiere.util.Trx;
 import org.compiere.util.ValueNamePair;
 import org.compiere.wf.MWFActivity;
 import org.compiere.wf.MWFNode;
+import org.compiere.wf.MWFProcess;
 import org.zkoss.zk.ui.Component;
 import org.zkoss.zk.ui.event.Event;
 import org.zkoss.zk.ui.event.EventListener;
@@ -420,7 +421,7 @@ public class WWFActivity extends ADForm implements EventListener<Event>
 				rowData.add(activity.getPriority());
 				rowData.add(activity.getNodeName());
 				rowData.add(activity.getSummary());
-				rowData.add(activity.get_ID());
+//				rowData.add(activity.get_ID());
 				model.add(rowData);
 				if (list.size() > MAX_ACTIVITIES_IN_LIST && MAX_ACTIVITIES_IN_LIST > 0)
 				{
@@ -445,9 +446,13 @@ public class WWFActivity extends ADForm implements EventListener<Event>
 			+ "(" + (System.currentTimeMillis()-start) + "ms)");
 		m_index = 0;
 
+//		String[] columns = new String[]{Msg.translate(Env.getCtx(), "Priority"),
+//				Msg.translate(Env.getCtx(), "AD_WF_Node_ID"),
+//				Msg.translate(Env.getCtx(), "Summary"), "ID"};
+		
 		String[] columns = new String[]{Msg.translate(Env.getCtx(), "Priority"),
 				Msg.translate(Env.getCtx(), "AD_WF_Node_ID"),
-				Msg.translate(Env.getCtx(), "Summary"), "ID"};
+				Msg.translate(Env.getCtx(), "Summary")};
 
 		WListItemRenderer renderer = new WListItemRenderer(Arrays.asList(columns));
 		ListHeader header = new ListHeader();
@@ -461,7 +466,8 @@ public class WWFActivity extends ADForm implements EventListener<Event>
 //		renderer.setListHeader(2, header);
 		ZKUpdateUtil.setWidth(header, null);
 		header = new ListHeader();
-		renderer.setListHeader(3, header);
+		renderer.setListHeader(2, header);
+//		renderer.setListHeader(3, header);
 		renderer.addTableValueChangeListener(listbox);
 		model.setNoColumns(columns.length);
 		listbox.setModel(model);
@@ -551,13 +557,15 @@ public class WWFActivity extends ADForm implements EventListener<Event>
 		m_column = null;
 		if (m_activities.length > 0)
 		{
-			if (selIndex >= 0 && selIndex < m_activities.length){
-//				m_activity = m_activities[selIndex];
-				Integer activityID = (Integer) model.getValueAt(selIndex, 3);
-				if (activityID != null && activityID > 0) {
-					m_activity = new MWFActivity(Env.getCtx(), activityID, null);
-				}
-			}
+//			if (selIndex >= 0 && selIndex < m_activities.length){
+////				m_activity = m_activities[selIndex];
+//				Integer activityID = (Integer) model.getValueAt(selIndex, 3);
+//				if (activityID != null && activityID > 0) {
+//					m_activity = new MWFActivity(Env.getCtx(), activityID, null);
+//				}
+//			}
+			if (selIndex >= 0 && selIndex < m_activities.length)
+				m_activity = m_activities[selIndex];
 		}
 		//	Nothing to show
 		if (m_activity == null)
@@ -791,6 +799,7 @@ public class WWFActivity extends ADForm implements EventListener<Event>
 					m_column = node.getColumn();
 				//	Do we have an answer?
 				int dt = m_column.getAD_Reference_ID();
+				
 				String value = fAnswerText.getText();
 				if (dt == DisplayType.YesNo || dt == DisplayType.List)
 				{
@@ -805,6 +814,10 @@ public class WWFActivity extends ADForm implements EventListener<Event>
 					return;
 				}
 				//
+				MWFProcess wfpr = new MWFProcess(m_activity.getCtx(), m_activity.getAD_WF_Process_ID(), m_activity.get_TrxName());
+				if (wfpr != null && (wfpr.getState().isCompleted()) || wfpr.getState().isRunning()) {
+					return; //fix activity bisa di running bersamaan jika klik bersamaan case di sas11
+				}
 				if (log.isLoggable(Level.CONFIG)) log.config("Answer=" + value + " - " + textMsg);
 				try
 				{
@@ -830,6 +843,7 @@ public class WWFActivity extends ADForm implements EventListener<Event>
 					}
 					if( validApproval )
 					//	}<- 201108230840 COMPARE WFResposible 1st ~dar~
+					
 					m_activity.setUserChoice(AD_User_ID, value, dt, textMsg);
 				}
 				catch (Exception e)
@@ -865,6 +879,7 @@ public class WWFActivity extends ADForm implements EventListener<Event>
 		}
 		finally
 		{
+			loadActivities();
 			Clients.clearBusy();
 			if (trx != null)
 				trx.close();

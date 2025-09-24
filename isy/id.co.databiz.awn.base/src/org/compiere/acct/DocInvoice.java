@@ -41,6 +41,7 @@ import org.compiere.model.MInvoice;
 import org.compiere.model.MInvoiceLine;
 import org.compiere.model.MLandedCostAllocation;
 import org.compiere.model.MOrderLandedCostAllocation;
+import org.compiere.model.MSysConfig;
 import org.compiere.model.MTax;
 import org.compiere.model.ProductCost;
 import org.compiere.model.X_M_Cost;
@@ -48,6 +49,7 @@ import org.compiere.util.DB;
 import org.compiere.util.Env;
 import org.compiere.util.Trx;
 
+import id.co.databiz.awn.model.AWNSysConfig;
 import id.co.databiz.awn.model.wrapper.ICDocType;
 
 /**
@@ -588,8 +590,8 @@ public class DocInvoice extends Doc_Invoice
 						expense = line.getAccount (ProductCost.ACCTTYPE_P_InventoryClearing, as);
 					BigDecimal amt = line.getAmtSource();
 					BigDecimal dAmt = null;
-					if (as.isTradeDiscountPosted() && !line.isItem())
-					{
+					if (as.isTradeDiscountPosted() && (!line.isItem() || MSysConfig.getValue(AWNSysConfig.ISY_TRADE_DISCOUNT_VENDOR_PRODUCTTYPE_ITEM, "N").equalsIgnoreCase("Y") ))
+					{	
 						BigDecimal discount = line.getDiscount();
 						if (discount != null && discount.signum() != 0)
 						{

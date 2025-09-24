@@ -219,16 +219,32 @@ public class AmtInWords_ID implements AmtInWords
 		amount = amount.replace (",", ".");
 		}
 		String cents = pos > 0 ? oldamt.substring (pos + 1):null;
-		double numDouble = Double.parseDouble(amount);
-		sayNumber(result, numDouble);
-		if (cents != null && Double.parseDouble(cents) > 0)
-		{	
-			result.append(" Koma ");
-			numDouble = Double.parseDouble(cents);
-			sayNumber(result, numDouble);
+//		double numDouble = Double.parseDouble(amount);
+//		sayNumbers(result, numDouble);
+//		if (cents != null && Double.parseDouble(cents) > 0)
+//		{	
+//			result.append(" Koma ");
+//			numDouble = Double.parseDouble(cents);
+//			sayNumber(result, numDouble, cents);
+//
+//		}
+		
+		try {
+			double numDouble = Double.parseDouble(amount);
+			sayNumbers(result, numDouble);
+			if (cents != null && Double.parseDouble(cents) > 0)
+			{	
+				result.append(" Koma ");
+				numDouble = Double.parseDouble(cents);
+				sayNumber(result, numDouble, cents);
+
+			}
+		} catch (NumberFormatException e) {
+//		    System.out.println("Invalid number format: " + e.getMessage());
+			return "";
 		}
 		//result.append(" Rupiah");
-		return result.toString();
+		return result.toString().trim();
 	}	//	getAmtInWords
 
 	/**
@@ -275,5 +291,152 @@ public class AmtInWords_ID implements AmtInWords
         aiw.print ("222,222,222,222,222");
         aiw.print ("222,222,222,222,222,222,222");        
 	}	//	main
+	
+	  /**
+	   * Say a number. This method will append the result to the given string buffer.
+	   *
+	   * @param appendTo the string buffer
+	   * @param number   number to say
+	   * @return said number
+	   * @throws IllegalArgumentException if the number equals to {@link Long#MIN_VALUE}
+	   */
+	  public static String sayNumber(StringBuffer appendTo, double number, String originalString)
+	  throws IllegalArgumentException {
+		  if (number == Double.MIN_VALUE) {
+			  throw new IllegalArgumentException("Out of range");
+		  }
+		  if (number < 0) {
+			  appendTo.append("Minus ");
+		  }
+		  
+		  double abs = Math.abs(number);
+		  
+		// Handle the original string representation for cases like "05"
+		  if (originalString != null && !originalString.isEmpty()) {
+		       for (char c : originalString.toCharArray()) {
+		          if (Character.isDigit(c)) {
+		              appendTo.append(basenumbers[Character.getNumericValue(c)]).append(' ');
+		           }
+		       }
+//		        appendTo.append("Rupiah");
+		        return appendTo.toString();
+		  }
+
+		  if (abs < POWER_THREE) {
+			  saySimpleNumber(appendTo, (int) abs);
+		  } else if (abs < 2000) {
+			  int thousand = (int) (abs % POWER_THREE);
+			  appendTo.append("Seribu ");
+			  saySimpleNumber(appendTo, thousand);
+		  } else if (abs < POWER_SIX) {
+			  int thousand = (int) (abs % POWER_SIX / POWER_THREE);
+			  saySimpleNumber(appendTo, thousand);
+			  appendTo.append(" Ribu");
+			  double remainder = abs - thousand * POWER_THREE;
+			  if (remainder > 0) {
+				  appendTo.append(' ');
+				  sayNumber(appendTo, remainder);
+			  }
+		  } else if (abs < POWER_NINE) {
+			  int million = (int) (abs % POWER_NINE / POWER_SIX);
+			  saySimpleNumber(appendTo, million);
+			  appendTo.append(" Juta");
+			  double remainder = abs - million * POWER_SIX;
+			  if (remainder > 0) {
+				  appendTo.append(' ');
+				  sayNumber(appendTo, remainder);
+			  }
+		  } else if (abs < POWER_TWELVE) {
+			  int billion = (int) (abs % POWER_TWELVE / POWER_NINE);
+			  saySimpleNumber(appendTo, billion);
+			  appendTo.append(" Milyar");
+			  double remainder = abs - billion * POWER_NINE;
+			  if (remainder > 0) {
+				  appendTo.append(' ');
+				  sayNumber(appendTo, remainder);
+			  }
+		  } else if (abs < POWER_FIFTEEN) {
+			  int trillion = (int) (abs % POWER_FIFTEEN / POWER_TWELVE);
+			  saySimpleNumber(appendTo, trillion);
+			  appendTo.append(" Trilyun");
+			  double remainder = abs - trillion * POWER_TWELVE;
+			  if (remainder > 0) {
+				  appendTo.append(' ');
+				  sayNumber(appendTo, remainder);
+			  }
+		  } else {
+			  appendTo.append("Lebih Dari Seribu Triliun");
+		  }
+		    
+		  return appendTo.toString();
+	  }
+	  
+	  
+	  /**
+	   * Say a number. This method will append the result to the given string buffer.
+	   *
+	   * @param appendTo the string buffer
+	   * @param number   number to say
+	   * @return said number
+	   * @throws IllegalArgumentException if the number equals to {@link Long#MIN_VALUE}
+	   */
+	  public static String sayNumbers(StringBuffer appendTo, double number)
+	  throws IllegalArgumentException {
+		  if (number == Double.MIN_VALUE) {
+			  throw new IllegalArgumentException("Out of range");
+		  }
+		  if (number < 0) {
+			  appendTo.append("Minus ");
+		  }
+		  double abs = Math.abs(number);
+		  double integerPart = Math.floor(abs); //fix bug di sas nol setelah kata ribu & sebelum kata koma disebutkan
+		  
+		  if (integerPart < POWER_THREE) {
+			  saySimpleNumber(appendTo, (int) integerPart);
+		  } else if (integerPart < 2000) {
+			  int thousand = (int) (integerPart % POWER_THREE);
+			  appendTo.append("Seribu ");
+			  saySimpleNumber(appendTo, thousand);
+		  } else if (integerPart < POWER_SIX) {
+			  int thousand = (int) (integerPart % POWER_SIX / POWER_THREE);
+			  saySimpleNumber(appendTo, thousand);
+			  appendTo.append(" Ribu");
+			  double remainder = integerPart - thousand * POWER_THREE;
+			  if (remainder > 0) {
+				  appendTo.append(' ');
+				  sayNumber(appendTo, remainder);
+			  }
+		  } else if (integerPart < POWER_NINE) {
+			  int million = (int) (integerPart % POWER_NINE / POWER_SIX);
+			  saySimpleNumber(appendTo, million);
+			  appendTo.append(" Juta");
+			  double remainder = integerPart - million * POWER_SIX;
+			  if (remainder > 0) {
+				  appendTo.append(' ');
+				  sayNumber(appendTo, remainder);
+			  }
+		  } else if (integerPart < POWER_TWELVE) {
+			  int billion = (int) (integerPart % POWER_TWELVE / POWER_NINE);
+			  saySimpleNumber(appendTo, billion);
+			  appendTo.append(" Milyar");
+			  double remainder = integerPart - billion * POWER_NINE;
+			  if (remainder > 0) {
+				  appendTo.append(' ');
+				  sayNumber(appendTo, remainder);
+			  }
+		  } else if (integerPart < POWER_FIFTEEN) {
+			  int trillion = (int) (integerPart % POWER_FIFTEEN / POWER_TWELVE);
+			  saySimpleNumber(appendTo, trillion);
+			  appendTo.append(" Trilyun");
+			  double remainder = integerPart - trillion * POWER_TWELVE;
+			  if (remainder > 0) {
+				  appendTo.append(' ');
+				  sayNumber(appendTo, remainder);
+			  }
+		  } else {
+			  appendTo.append("Lebih Dari Seribu Triliun");
+		  }
+		return appendTo.toString();
+	  }
 	
 }	//	AmtInWords_IN

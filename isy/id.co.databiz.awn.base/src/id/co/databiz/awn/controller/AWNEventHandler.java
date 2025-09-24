@@ -219,6 +219,9 @@ public class AWNEventHandler extends AbstractEventHandler{
 		registerTableEvent(IEventTopics.DOC_AFTER_REVERSEACCRUAL, MInOut.Table_Name);
 		registerTableEvent(IEventTopics.DOC_AFTER_REVERSECORRECT, MInOut.Table_Name);
 		
+		registerTableEvent(IEventTopics.DOC_BEFORE_REACTIVATE, MOrder.Table_Name);
+
+		
 	}
 	
 	private void beforeNew(Event event){
@@ -542,6 +545,13 @@ public class AWNEventHandler extends AbstractEventHandler{
 	}
 	
 	private void beforeReactivate(Event event){
+		PO po = getPO(event);
+		if (event.getTopic().equals(IEventTopics.DOC_BEFORE_REACTIVATE)) {
+			if (po.get_TableName().equals(MOrder.Table_Name)) {
+				MOrder order = (MOrder) po;
+				OrderController.beforeReactivate(order);
+			}
+		}
 		
 	}
 	

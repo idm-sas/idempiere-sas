@@ -1,0 +1,36 @@
+#-------------------------
+# iDempiere Base
+#-------------------------
+idm11/
+plugins/
+idempiere-rest/
+idempiere/
+
+# MacOS
+.DS_Store
+
+# IntelliJ / IDEA
+.idea/
+*.iml
+
+# Eclipse
+.project
+.classpath
+.settings/
+
+# VSCode
+.vscode/
+
+# Build
+/bin/
+/build/
+/target/
+/out/
+
+# Logs
+*.log
+
+# OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini

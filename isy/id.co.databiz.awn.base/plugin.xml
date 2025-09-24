@@ -462,7 +462,8 @@
          name="GenerateShipments"
          point="org.adempiere.base.Process">
       <process
-            class="id.co.databiz.awn.process.InOutGenerate">
+            class="id.co.databiz.awn.process.InOutGenerate"
+            priority="100">
       </process>
    </extension>
    <extension

@@ -391,8 +391,8 @@ public class MMatchInv extends X_M_MatchInv
 			reversal.setAD_Org_ID(this.getAD_Org_ID());
 			reversal.setDescription("(->" + this.getDocumentNo() + ")");
 			reversal.setQty(this.getQty().negate());
-			reversal.setDateAcct(reversalDate);
-			reversal.setDateTrx(reversalDate);
+			reversal.setDateAcct(getDateAcct());
+			reversal.setDateTrx(getDateTrx());
 			reversal.set_ValueNoCheck ("DocumentNo", null);
 			reversal.setPosted (false);
 			reversal.setReversal_ID(getM_MatchInv_ID());

@@ -96,5 +96,16 @@ public class OrderController {
 				}
 			}
 		}
+		boolean isAllocated = order.get_ValueAsBoolean("IsAllocated");
+		if (isAllocated == true) {
+			throw new AdempiereException("<b>ISY-444 Failed to Re-activate/Void because there is already an MR/Shipment and Invoice</b>");
+		}
+	}
+	
+	public static void beforeReactivate(MOrder order) {
+		boolean isAllocated = order.get_ValueAsBoolean("IsAllocated");
+		if (isAllocated == true) {
+			throw new AdempiereException("<b>ISY-444 Failed to Re-activate/Void because there is already an MR/Shipment and Invoice</b>");
+		}
 	}
 }
