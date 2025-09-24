@@ -36,20 +36,17 @@ public class CalloutRMALineProduct implements IColumnCallout {
 		String soTrx = Env.getContext(ctx, WindowNo, "IsSOTrx");
 		
 		int invoiceDocTypeID = -1;
-		if (docTypeID == SASSystemID.DOCTYPE_CUSTOMER_RMA_A) {
-			invoiceDocTypeID = SASSystemID.DOCTYPE_AR_INVOICE_TAX;
-		} else if (docTypeID == SASSystemID.DOCTYPE_CUSTOMER_RMA_B) {
-			invoiceDocTypeID = SASSystemID.DOCTYPE_AR_INVOICE_NON_TAX;
-		} else if (docTypeID == SASSystemID.DOCTYPE_VENDOR_RMA) {
+		if (docTypeID == SASSystemID.DOCTYPE_VENDOR_RMA) {
 			invoiceDocTypeID = SASSystemID.DOCTYPE_AP_INVOICE;
 		}
 		
 		if(productID > 0 && bpID > 0 && docTypeID > 0 && orgTrxID > 0){
 			StringBuilder sqlIO = new StringBuilder();
-			sqlIO.append("SELECT MAX(il.M_InOutLine_ID) ");
+			sqlIO.append("SELECT il.M_InOutLine_ID, iv.C_DocType_ID ");
 			sqlIO.append("FROM M_InOutLine il ");
 			sqlIO.append("INNER JOIN M_InOut i ON (i.M_InOut_ID = il.M_InOut_ID) ");
 			sqlIO.append("INNER JOIN C_InvoiceLine ill ON (ill.M_InOutLine_ID = il.M_InOutLine_ID) ");
+			sqlIO.append("INNER JOIN C_Invoice iv ON (iv.C_Invoice_ID = ill.C_Invoice_ID) ");
 			sqlIO.append("WHERE i.DocStatus IN ('CO','CL') ");
 			sqlIO.append("AND i.MovementType IN ('C-','V+') ");
 			sqlIO.append("AND i.C_DocType_ID NOT IN (550292,550268,550295) "); // not SCN/SCT/SLL
@@ -58,17 +55,42 @@ public class CalloutRMALineProduct implements IColumnCallout {
 			sqlIO.append("AND il.M_Product_ID = ? ");
 //			sqlIO.append("AND i.C_DocType_ID = ? ");
 			sqlIO.append("AND i.AD_OrgTrx_ID = ? ");
-//			sqlIO.append("ORDER BY i.MovementDate DESC ");
-			int inOutLineID = DB.getSQLValue(null, sqlIO.toString(), soTrx, bpID, productID, orgTrxID);
-			if (inOutLineID > 0) {
-			  mTab.setValue("M_InOutLine_ID", inOutLineID);
-			  MInOutLine ioLine = new MInOutLine(ctx, inOutLineID, null);
-			  MRMA rma = new MRMA(ctx, rmaID, null);
-			  if (rma.getInOut_ID() != ioLine.getM_InOut_ID()) {
-				  DB.executeUpdateEx("UPDATE M_RMA SET InOut_ID = ? WHERE M_RMA_ID = ?", 
-						  new Object[]{ioLine.getM_InOut_ID(),rma.get_ID()}, null);
-			  }
-		  }
+			sqlIO.append("ORDER BY i.MovementDate DESC ");
+			sqlIO.append("FETCH FIRST 1 ROW ONLY");
+			
+			PreparedStatement pstmt = null;
+			ResultSet rs = null;			
+			int inOutLineID = -1;
+			
+			try
+			{
+				pstmt = DB.prepareStatement(sqlIO.toString(), null);
+				DB.setParameters(pstmt, new Object[]{soTrx, bpID, productID, orgTrxID});
+				rs = pstmt.executeQuery();
+				if (rs.next())
+				{
+					inOutLineID = rs.getInt("M_InOutLine_ID");
+					invoiceDocTypeID = rs.getInt("C_DocType_ID");
+					
+					mTab.setValue("M_InOutLine_ID", inOutLineID);
+					MInOutLine ioLine = new MInOutLine(ctx, inOutLineID, null);
+					MRMA rma = new MRMA(ctx, rmaID, null);
+					
+					if (rma.getInOut_ID() != ioLine.getM_InOut_ID()) {
+						DB.executeUpdateEx("UPDATE M_RMA SET InOut_ID = ? WHERE M_RMA_ID = ?",
+								new Object[]{ioLine.getM_InOut_ID(),rma.get_ID()}, null);
+					}
+				}
+			}
+			catch (SQLException e)
+			{
+				throw new DBException(e, sqlIO.toString());
+			}
+			finally
+			{
+				DB.close(rs, pstmt);
+				rs = null; pstmt = null;
+			}
 			
 			// SAS-21 look for amount in last invoice
 			StringBuilder sql = new StringBuilder();
@@ -84,8 +106,8 @@ public class CalloutRMALineProduct implements IColumnCallout {
 			sql.append("AND il.M_InOutLine_ID = ? ");
 			sql.append("ORDER BY i.DateInvoiced DESC ");
 			
-			PreparedStatement pstmt = null;
-			ResultSet rs = null;
+			pstmt = null;
+			rs = null;
 			try
 			{
 			  pstmt = DB.prepareStatement(sql.toString(), null);
