@@ -150,7 +150,7 @@ public class Aging extends SvrProcess
 				.append(", currencyConvert(invoiceOpenToDate(oi.C_Invoice_ID,oi.C_InvoicePaySchedule_ID,"+dateacct+")").append(s);  // 13
 			}
 		}
-		sql.append(",oi.C_Activity_ID,oi.C_Campaign_ID,oi.C_Project_ID,oi.AD_Org_ID,oi.AD_OrgTrx_ID,i.DateReceived,i.C_PaymentTerm_ID,i.DunningGrace,i.User1_ID ");	//	14..22
+		sql.append(",oi.C_Activity_ID,oi.C_Campaign_ID,oi.C_Project_ID,oi.AD_Org_ID,oi.AD_OrgTrx_ID,i.DateReceived,i.C_PaymentTerm_ID,i.DunningGrace,i.User1_ID,oi.Z_Kwitansi_ID ");	//	14..23
 		if (!p_DateAcct)//FR 1933937
 		{
 			sql.append(" FROM RV_OpenItem oi");
@@ -243,6 +243,7 @@ public class Aging extends SvrProcess
 				int C_PaymentTerm_ID = rs.getInt(20);
 				Timestamp DunningGrace = rs.getTimestamp(21);
 				int user1_ID = rs.getInt(22);
+				int Z_Kwitansi_ID = rs.getInt(23);
 				
 				rows++;
 				//	New Aging Row
@@ -290,7 +291,9 @@ public class Aging extends SvrProcess
 						aging.set_ValueOfColumn("RegionCollection", bpl.get_Value("RegionCollection"));
 						aging.set_ValueOfColumn("Order_SalesRep_ID", invoice.getC_Order().getSalesRep_ID());
 						aging.set_ValueOfColumn("BP_SalesRep_ID", invoice.getC_BPartner().getSalesRep_ID());
-						aging.set_ValueOfColumn("DocStatus", invoice.getDocStatus());
+						aging.set_ValueOfColumn("DocStatus", invoice.getDocStatus());					
+						if (Z_Kwitansi_ID > 0)
+							aging.set_ValueOfColumn("Z_Kwitansi_ID", Z_Kwitansi_ID);
 					}
 				}
 				//	Fill Buckets
