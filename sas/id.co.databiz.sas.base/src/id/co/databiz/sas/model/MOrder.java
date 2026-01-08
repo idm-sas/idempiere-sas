@@ -22,6 +22,7 @@ import id.co.databiz.sas.SASSystemID;
 
 import java.io.File;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -1716,18 +1717,20 @@ public class MOrder extends org.compiere.model.MOrder implements DocAction
                     }
 				}
 				
-				BigDecimal totalDiscountBOM = totalLineNetAmt.subtract(line.getPriceList());
+				BigDecimal totalPrice = line.getQtyOrdered().multiply(line.getPriceList());
+				totalPrice = totalLineNetAmt.subtract(totalPrice);				
+				BigDecimal totalDiscountBOM = totalPrice.divide(line.getQtyOrdered(), 2, RoundingMode.HALF_UP);
+				
 				MOrderLine orderLine = new MOrderLine(this);
 				orderLine.setLine(lineNo);
 				orderLine.setC_Charge_ID(SASSystemID.CHARGE_DISKON_PENJUALAN_PAKET);
-				orderLine.setQty(Env.ONE);
+				orderLine.setQty(line.getQtyOrdered());
 				orderLine.setC_UOM_ID(SASSystemID.UOM_EACH);
 				if (line.getDescription() != null) {
 					orderLine.setDescription(line.getDescription());
 				}
 				orderLine.setPriceEntered(totalDiscountBOM.negate());
 				orderLine.setPriceActual(totalDiscountBOM.negate());
-				orderLine.setLineNetAmt(totalDiscountBOM.negate());
 				orderLine.set_ValueOfColumn("Source_OrderLine_ID", line.get_ID());
 				orderLine.setDiscount(Env.ZERO);
 				orderLine.setC_Project_ID(line.getC_Project_ID());
