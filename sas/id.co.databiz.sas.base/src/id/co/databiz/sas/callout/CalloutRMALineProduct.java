@@ -36,31 +36,36 @@ public class CalloutRMALineProduct implements IColumnCallout {
 		String soTrx = Env.getContext(ctx, WindowNo, "IsSOTrx");
 		
 		int invoiceDocTypeID = -1;
-		if (docTypeID == SASSystemID.DOCTYPE_VENDOR_RMA) {
+		int lastInvoiceDocTypeID = -1;
+        int inOutLineID = -1;
+
+        if (docTypeID == SASSystemID.DOCTYPE_CUSTOMER_RMA_A) {
+			invoiceDocTypeID = SASSystemID.DOCTYPE_AR_INVOICE_TAX;
+		} else if (docTypeID == SASSystemID.DOCTYPE_CUSTOMER_RMA_B) {
+			invoiceDocTypeID = SASSystemID.DOCTYPE_AR_INVOICE_NON_TAX;
+		} else if (docTypeID == SASSystemID.DOCTYPE_VENDOR_RMA) {
 			invoiceDocTypeID = SASSystemID.DOCTYPE_AP_INVOICE;
 		}
-		
+
 		if(productID > 0 && bpID > 0 && docTypeID > 0 && orgTrxID > 0){
 			StringBuilder sqlIO = new StringBuilder();
-			sqlIO.append("SELECT il.M_InOutLine_ID, iv.C_DocType_ID ");
-			sqlIO.append("FROM M_InOutLine il ");
-			sqlIO.append("INNER JOIN M_InOut i ON (i.M_InOut_ID = il.M_InOut_ID) ");
-			sqlIO.append("INNER JOIN C_InvoiceLine ill ON (ill.M_InOutLine_ID = il.M_InOutLine_ID) ");
-			sqlIO.append("INNER JOIN C_Invoice iv ON (iv.C_Invoice_ID = ill.C_Invoice_ID) ");
-			sqlIO.append("WHERE i.DocStatus IN ('CO','CL') ");
-			sqlIO.append("AND i.MovementType IN ('C-','V+') ");
-			sqlIO.append("AND i.C_DocType_ID NOT IN (550292,550268,550295) "); // not SCN/SCT/SLL
-			sqlIO.append("AND i.IsSOTrx = ? ");
-			sqlIO.append("AND i.C_BPartner_ID = ? ");
-			sqlIO.append("AND il.M_Product_ID = ? ");
-//			sqlIO.append("AND i.C_DocType_ID = ? ");
-			sqlIO.append("AND i.AD_OrgTrx_ID = ? ");
-			sqlIO.append("ORDER BY i.MovementDate DESC ");
-			sqlIO.append("FETCH FIRST 1 ROW ONLY");
+            sqlIO.append("SELECT il.M_InOutLine_ID, iv.C_DocType_ID ");
+            sqlIO.append("FROM M_InOutLine il ");
+            sqlIO.append("INNER JOIN M_InOut i ON (i.M_InOut_ID = il.M_InOut_ID) ");
+            sqlIO.append("INNER JOIN C_InvoiceLine ill ON (ill.M_InOutLine_ID = il.M_InOutLine_ID) ");
+            sqlIO.append("INNER JOIN C_Invoice iv ON (iv.C_Invoice_ID = ill.C_Invoice_ID) ");
+            sqlIO.append("WHERE i.DocStatus IN ('CO','CL') ");
+            sqlIO.append("AND i.MovementType IN ('C-','V+') ");
+            sqlIO.append("AND i.C_DocType_ID NOT IN (550292,550268,550295) ");
+            sqlIO.append("AND i.IsSOTrx = ? ");
+            sqlIO.append("AND i.C_BPartner_ID = ? ");
+            sqlIO.append("AND il.M_Product_ID = ? ");
+            sqlIO.append("AND i.AD_OrgTrx_ID = ? ");
+            sqlIO.append("ORDER BY i.MovementDate DESC ");
+            sqlIO.append("FETCH FIRST 1 ROW ONLY");
 			
 			PreparedStatement pstmt = null;
-			ResultSet rs = null;			
-			int inOutLineID = -1;
+			ResultSet rs = null;		
 			
 			try
 			{
@@ -70,7 +75,13 @@ public class CalloutRMALineProduct implements IColumnCallout {
 				if (rs.next())
 				{
 					inOutLineID = rs.getInt("M_InOutLine_ID");
-					invoiceDocTypeID = rs.getInt("C_DocType_ID");
+                    lastInvoiceDocTypeID = rs.getInt("C_DocType_ID");
+
+					if (docTypeID == SASSystemID.DOCTYPE_CUSTOMER_RMA_A && lastInvoiceDocTypeID == SASSystemID.DOCTYPE_AR_INVOICE_SF_TAX) {
+						invoiceDocTypeID = SASSystemID.DOCTYPE_AR_INVOICE_SF_TAX;
+					} else if (docTypeID == SASSystemID.DOCTYPE_CUSTOMER_RMA_B && lastInvoiceDocTypeID == SASSystemID.DOCTYPE_AR_INVOICE_SF_NON_TAX) {
+						invoiceDocTypeID =  SASSystemID.DOCTYPE_AR_INVOICE_SF_NON_TAX;
+					}
 					
 					mTab.setValue("M_InOutLine_ID", inOutLineID);
 					MInOutLine ioLine = new MInOutLine(ctx, inOutLineID, null);
@@ -94,17 +105,17 @@ public class CalloutRMALineProduct implements IColumnCallout {
 			
 			// SAS-21 look for amount in last invoice
 			StringBuilder sql = new StringBuilder();
-			sql.append("SELECT C_InvoiceLine_ID ");
-			sql.append("FROM C_InvoiceLine il ");
-			sql.append("INNER JOIN C_Invoice i ON (i.C_Invoice_ID = il.C_Invoice_ID) ");
-			sql.append("WHERE i.DocStatus IN ('CO','CL') ");
-			sql.append("AND i.IsSOTrx = ? ");
-			sql.append("AND i.C_BPartner_ID = ? ");
-			sql.append("AND il.M_Product_ID = ? ");
-			sql.append("AND i.C_DocType_ID = ? ");
-			sql.append("AND i.AD_OrgTrx_ID = ? ");
-			sql.append("AND il.M_InOutLine_ID = ? ");
-			sql.append("ORDER BY i.DateInvoiced DESC ");
+            sql.append("SELECT C_InvoiceLine_ID ");
+            sql.append("FROM C_InvoiceLine il ");
+            sql.append("INNER JOIN C_Invoice i ON (i.C_Invoice_ID = il.C_Invoice_ID) ");
+            sql.append("WHERE i.DocStatus IN ('CO','CL') ");
+            sql.append("AND i.IsSOTrx = ? ");
+            sql.append("AND i.C_BPartner_ID = ? ");
+            sql.append("AND il.M_Product_ID = ? ");
+            sql.append("AND i.C_DocType_ID = ? ");
+            sql.append("AND i.AD_OrgTrx_ID = ? ");
+            sql.append("AND il.M_InOutLine_ID = ? ");
+            sql.append("ORDER BY i.DateInvoiced DESC ");
 			
 			pstmt = null;
 			rs = null;
