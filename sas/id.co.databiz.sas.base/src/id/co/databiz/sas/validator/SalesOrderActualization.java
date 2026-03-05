@@ -167,8 +167,8 @@ public class SalesOrderActualization {
 			sql1.append(" AND ol.c_charge_id in (2200031, 1000114) "
 					+ "   AND("
 					+ "    (o.c_doctype_id = 550420 and o.docstatus in ('CO','CL')) OR "
-					+ "    (o.c_doctype_id in (550265,1000030) and o.docstatus in ('IP','CO','CL')) OR "
-					+ "    (o.c_doctype_id in (1000046,1000047) and o.docstatus in ('IP','CO','CL')) OR "
+					+ "    (o.c_doctype_id in (550265,1000030) and o.docstatus in ('IP','CO','CL','AP')) OR "
+					+ "    (o.c_doctype_id in (1000046,1000047) and o.docstatus in ('IP','CO','CL','AP')) OR "
 					+ "    (o.c_doctype_id in (550270,1000027) and o.docstatus in ('IP','CO')) OR "
 					+ "    (o.c_doctype_id in (550269,1000026) and o.docstatus in ('IP')) )  ");
 			sql1.append("group by snr.c_campaign_id, c.startdate  ");
