@@ -1210,16 +1210,28 @@ public class SASEventHandler extends AbstractEventHandler {
 		} else if (event.getTopic().equals(IEventTopics.DOC_BEFORE_REVERSECORRECT) || 
 				event.getTopic().equals(IEventTopics.DOC_BEFORE_REVERSEACCRUAL)) {
 			if (po.get_TableName().equals(MMovement.Table_Name)){
-				MMovement imk = (MMovement) po;
-				if (imk.getC_DocType_ID() != SASSystemID.DOCTYPE_IM_TERIMA) {
-					MMovement imt = new Query(Env.getCtx(), MMovement.Table_Name, 
-							"Ref_Movement_ID = ? AND DocStatus NOT IN ('VO','RE')", po.get_TrxName())
-						.setParameters(imk.get_ID())
-						.first();
-					if (imt != null && imt.get_ID() > 0) {
-						throw new AdempiereUserError("Document already received. Plese void the document first: " + imt.getDocumentNo());
-					}
+				MMovement movement = (MMovement) po;
+				String whereClause = null;
+			    Object[] params = null;
+			    
+				if (movement.getC_DocType_ID() == SASSystemID.DOCTYPE_IM_KIRIM || movement.getC_DocType_ID() == SASSystemID.DOCTYPE_IS_KIRIM) {
+					whereClause = "Ref_Movement_ID = ? AND DocStatus NOT IN ('VO','RE')";
+			        params = new Object[]{movement.get_ID()};
+			        
+				} else if (movement.getC_DocType_ID() == SASSystemID.DOCTYPE_IS_TERIMA) {
+					 whereClause = "Transit_Movement_ID = ? AND DocStatus NOT IN ('VO','RE')";
+					 params = new Object[]{movement.get_ID()};
 				}
+				
+				if (whereClause != null) {
+			        MMovement existing = new Query(Env.getCtx(), MMovement.Table_Name, whereClause, po.get_TrxName())
+			                .setParameters(params)
+			                .first();
+
+			        if (existing != null && existing.get_ID() > 0) {
+			        	throw new AdempiereUserError("Document already received. Plese void the document first: " + existing.getDocumentNo());
+			        }
+			    }
 			} else if (po.get_TableName().equals(MInvoice.Table_Name)){
 				MInvoice invoice = (MInvoice) po;
 				
