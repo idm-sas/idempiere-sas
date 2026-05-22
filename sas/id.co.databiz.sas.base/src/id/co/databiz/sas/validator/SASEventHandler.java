@@ -1229,7 +1229,7 @@ public class SASEventHandler extends AbstractEventHandler {
 			                .first();
 
 			        if (existing != null && existing.get_ID() > 0) {
-			        	throw new AdempiereUserError("Document already received. Plese void the document first: " + existing.getDocumentNo());
+			        	throw new AdempiereUserError("Document already received. Please void the document first: " + existing.getDocumentNo());
 			        }
 			    }
 			} else if (po.get_TableName().equals(MInvoice.Table_Name)){
@@ -1247,6 +1247,25 @@ public class SASEventHandler extends AbstractEventHandler {
 					throw new AdempiereUserError("SAS-147 \n" + count 
 							+ " allocation(s) exists for " + invoice.getDocumentNo());
 				}
+			}
+		} else if (event.getTopic().equals(IEventTopics.DOC_BEFORE_VOID)) {
+			if (po.get_TableName().equals(MOrder.Table_Name)) {
+				MOrder order = (MOrder) po;
+				String whereClause = null;
+				Object[] params = null;
+				 
+				whereClause = "C_Order_ID = ? AND DocStatus NOT IN ('VO','RE')";
+				params = new Object[]{order.get_ID()};
+				
+				if (whereClause != null) {
+			        MMovement existing = new Query(Env.getCtx(), MMovement.Table_Name, whereClause, po.get_TrxName())
+			                .setParameters(params)
+			                .first();
+
+			        if (existing != null && existing.get_ID() > 0) {
+			        	throw new AdempiereUserError("Document already received. Please void the document first: " + existing.getDocumentNo());
+			        }
+			    }
 			}
 		}
 	}
@@ -1291,6 +1310,8 @@ public class SASEventHandler extends AbstractEventHandler {
 		registerTableEvent(IEventTopics.DOC_BEFORE_REVERSEACCRUAL, MInvoice.Table_Name);
 		registerTableEvent(IEventTopics.DOC_BEFORE_REVERSECORRECT, MMovement.Table_Name);
 		registerTableEvent(IEventTopics.DOC_BEFORE_REVERSEACCRUAL, MMovement.Table_Name);
+		
+		registerTableEvent(IEventTopics.DOC_BEFORE_VOID, MOrder.Table_Name);
 	}
 	
 	private MAcctSchema getAcctSchema() {
