@@ -751,6 +751,7 @@ public class SASEventHandler extends AbstractEventHandler {
 					MOrg orgtrx = MOrg.get(Env.getCtx(), order.getAD_OrgTrx_ID());
 									
 					if (countk > 0) {
+						BigDecimal limitDiscount = (BigDecimal) orgtrx.get_Value("Limit_Discount");
 						
 						//Count Group3
 						String countgroup3sqls ="select count(*) "
@@ -795,7 +796,7 @@ public class SASEventHandler extends AbstractEventHandler {
 							throw new AdempiereException("Error. TotalDiscount > Limit");
 						}
 						
-						else if (countgroup3s == 0 && discount.compareTo(BigDecimal.valueOf(orgtrx.get_ValueAsInt("Limit_Discount"))) >0 ) {
+						else if (countgroup3s == 0 && discount.compareTo(limitDiscount) >0 ) {
 							//Update Campaign
 	//						String sqlcampaign = " update c_order set c_campaign_id = (select c.c_campaign_id  from c_campaign c where c.value = 'Discount-K' fetch first 1 row only) "
 	//								+ "where c_order_id = "+order.getC_Order_ID();
