@@ -751,6 +751,7 @@ public class SASEventHandler extends AbstractEventHandler {
 					MOrg orgtrx = MOrg.get(Env.getCtx(), order.getAD_OrgTrx_ID());
 									
 					if (countk > 0) {
+						BigDecimal limitDiscount = (BigDecimal) orgtrx.get_Value("Limit_Discount");
 						
 						//Count Group3
 						String countgroup3sqls ="select count(*) "
@@ -795,7 +796,7 @@ public class SASEventHandler extends AbstractEventHandler {
 							throw new AdempiereException("Error. TotalDiscount > Limit");
 						}
 						
-						else if (countgroup3s == 0 && discount.compareTo(BigDecimal.valueOf(orgtrx.get_ValueAsInt("Limit_Discount"))) >0 ) {
+						else if (countgroup3s == 0 && discount.compareTo(limitDiscount) >0 ) {
 							//Update Campaign
 	//						String sqlcampaign = " update c_order set c_campaign_id = (select c.c_campaign_id  from c_campaign c where c.value = 'Discount-K' fetch first 1 row only) "
 	//								+ "where c_order_id = "+order.getC_Order_ID();
@@ -1210,16 +1211,28 @@ public class SASEventHandler extends AbstractEventHandler {
 		} else if (event.getTopic().equals(IEventTopics.DOC_BEFORE_REVERSECORRECT) || 
 				event.getTopic().equals(IEventTopics.DOC_BEFORE_REVERSEACCRUAL)) {
 			if (po.get_TableName().equals(MMovement.Table_Name)){
-				MMovement imk = (MMovement) po;
-				if (imk.getC_DocType_ID() != SASSystemID.DOCTYPE_IM_TERIMA) {
-					MMovement imt = new Query(Env.getCtx(), MMovement.Table_Name, 
-							"Ref_Movement_ID = ? AND DocStatus NOT IN ('VO','RE')", po.get_TrxName())
-						.setParameters(imk.get_ID())
-						.first();
-					if (imt != null && imt.get_ID() > 0) {
-						throw new AdempiereUserError("Document already received. Plese void the document first: " + imt.getDocumentNo());
-					}
+				MMovement movement = (MMovement) po;
+				String whereClause = null;
+			    Object[] params = null;
+			    
+				if (movement.getC_DocType_ID() == SASSystemID.DOCTYPE_IM_KIRIM || movement.getC_DocType_ID() == SASSystemID.DOCTYPE_IS_KIRIM) {
+					whereClause = "Ref_Movement_ID = ? AND DocStatus NOT IN ('VO','RE')";
+			        params = new Object[]{movement.get_ID()};
+			        
+				} else if (movement.getC_DocType_ID() == SASSystemID.DOCTYPE_IS_TERIMA) {
+					 whereClause = "Transit_Movement_ID = ? AND DocStatus NOT IN ('VO','RE')";
+					 params = new Object[]{movement.get_ID()};
 				}
+				
+				if (whereClause != null) {
+			        MMovement existing = new Query(Env.getCtx(), MMovement.Table_Name, whereClause, po.get_TrxName())
+			                .setParameters(params)
+			                .first();
+
+			        if (existing != null && existing.get_ID() > 0) {
+			        	throw new AdempiereUserError("Document already received. Please void the document first: " + existing.getDocumentNo());
+			        }
+			    }
 			} else if (po.get_TableName().equals(MInvoice.Table_Name)){
 				MInvoice invoice = (MInvoice) po;
 				
@@ -1235,6 +1248,25 @@ public class SASEventHandler extends AbstractEventHandler {
 					throw new AdempiereUserError("SAS-147 \n" + count 
 							+ " allocation(s) exists for " + invoice.getDocumentNo());
 				}
+			}
+		} else if (event.getTopic().equals(IEventTopics.DOC_BEFORE_VOID)) {
+			if (po.get_TableName().equals(MOrder.Table_Name)) {
+				MOrder order = (MOrder) po;
+				String whereClause = null;
+				Object[] params = null;
+				 
+				whereClause = "C_Order_ID = ? AND DocStatus NOT IN ('VO','RE')";
+				params = new Object[]{order.get_ID()};
+				
+				if (whereClause != null) {
+			        MMovement existing = new Query(Env.getCtx(), MMovement.Table_Name, whereClause, po.get_TrxName())
+			                .setParameters(params)
+			                .first();
+
+			        if (existing != null && existing.get_ID() > 0) {
+			        	throw new AdempiereUserError("Document already received. Please void the document first: " + existing.getDocumentNo());
+			        }
+			    }
 			}
 		}
 	}
@@ -1279,6 +1311,8 @@ public class SASEventHandler extends AbstractEventHandler {
 		registerTableEvent(IEventTopics.DOC_BEFORE_REVERSEACCRUAL, MInvoice.Table_Name);
 		registerTableEvent(IEventTopics.DOC_BEFORE_REVERSECORRECT, MMovement.Table_Name);
 		registerTableEvent(IEventTopics.DOC_BEFORE_REVERSEACCRUAL, MMovement.Table_Name);
+		
+		registerTableEvent(IEventTopics.DOC_BEFORE_VOID, MOrder.Table_Name);
 	}
 	
 	private MAcctSchema getAcctSchema() {

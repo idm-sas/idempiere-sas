@@ -6,7 +6,10 @@ import java.math.BigDecimal;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
+import java.util.stream.Collectors;
 
 import org.adempiere.base.IColumnCallout;
 import org.adempiere.exceptions.DBException;
@@ -35,21 +38,29 @@ public class CalloutRMALineProduct implements IColumnCallout {
 		int orgTrxID = Env.getContextAsInt(ctx, WindowNo, "AD_OrgTrx_ID");
 		String soTrx = Env.getContext(ctx, WindowNo, "IsSOTrx");
 		
-		int invoiceDocTypeID = -1;
-		int lastInvoiceDocTypeID = -1;
         int inOutLineID = -1;
+        int invoiceLineID = -1;
+        
+        List<Integer> invoiceDocTypeIDs = new ArrayList<>();
 
-        if (docTypeID == SASSystemID.DOCTYPE_CUSTOMER_RMA_A) {
-			invoiceDocTypeID = SASSystemID.DOCTYPE_AR_INVOICE_TAX;
-		} else if (docTypeID == SASSystemID.DOCTYPE_CUSTOMER_RMA_B) {
-			invoiceDocTypeID = SASSystemID.DOCTYPE_AR_INVOICE_NON_TAX;
-		} else if (docTypeID == SASSystemID.DOCTYPE_VENDOR_RMA) {
-			invoiceDocTypeID = SASSystemID.DOCTYPE_AP_INVOICE;
+        if (docTypeID == SASSystemID.DOCTYPE_CUSTOMER_RMA_A) {	
+        	invoiceDocTypeIDs.add(SASSystemID.DOCTYPE_AR_INVOICE_TAX);
+        	invoiceDocTypeIDs.add(SASSystemID.DOCTYPE_AR_INVOICE_SF_TAX);
+		} else if (docTypeID == SASSystemID.DOCTYPE_CUSTOMER_RMA_B) {			
+			invoiceDocTypeIDs.add(SASSystemID.DOCTYPE_AR_INVOICE_NON_TAX);
+			invoiceDocTypeIDs.add(SASSystemID.DOCTYPE_AR_INVOICE_SF_NON_TAX);
+		} else if (docTypeID == SASSystemID.DOCTYPE_VENDOR_RMA) {			
+			invoiceDocTypeIDs.add(SASSystemID.DOCTYPE_AP_INVOICE);
 		}
 
 		if(productID > 0 && bpID > 0 && docTypeID > 0 && orgTrxID > 0){
+			String placeholders = invoiceDocTypeIDs.stream()
+			        .map(i -> "?")
+			        .collect(Collectors.joining(","));
+			
+			// SAS-21 look for amount in last invoice
 			StringBuilder sqlIO = new StringBuilder();
-            sqlIO.append("SELECT il.M_InOutLine_ID, iv.C_DocType_ID ");
+            sqlIO.append("SELECT il.M_InOutLine_ID, ill.C_InvoiceLine_ID ");
             sqlIO.append("FROM M_InOutLine il ");
             sqlIO.append("INNER JOIN M_InOut i ON (i.M_InOut_ID = il.M_InOut_ID) ");
             sqlIO.append("INNER JOIN C_InvoiceLine ill ON (ill.M_InOutLine_ID = il.M_InOutLine_ID) ");
@@ -61,7 +72,8 @@ public class CalloutRMALineProduct implements IColumnCallout {
             sqlIO.append("AND i.C_BPartner_ID = ? ");
             sqlIO.append("AND il.M_Product_ID = ? ");
             sqlIO.append("AND i.AD_OrgTrx_ID = ? ");
-            sqlIO.append("ORDER BY i.MovementDate DESC ");
+            sqlIO.append("AND iv.C_DocType_ID IN (" + placeholders + ") ");
+            sqlIO.append("ORDER BY iv.DateInvoiced DESC, iv.Created DESC ");
             sqlIO.append("FETCH FIRST 1 ROW ONLY");
 			
 			PreparedStatement pstmt = null;
@@ -69,19 +81,21 @@ public class CalloutRMALineProduct implements IColumnCallout {
 			
 			try
 			{
+				List<Object> params = new ArrayList<>();
+
+				params.add(soTrx);
+				params.add(bpID);
+				params.add(productID);
+				params.add(orgTrxID);
+				params.addAll(invoiceDocTypeIDs);
+				
 				pstmt = DB.prepareStatement(sqlIO.toString(), null);
-				DB.setParameters(pstmt, new Object[]{soTrx, bpID, productID, orgTrxID});
+				DB.setParameters(pstmt, params);
 				rs = pstmt.executeQuery();
 				if (rs.next())
 				{
 					inOutLineID = rs.getInt("M_InOutLine_ID");
-                    lastInvoiceDocTypeID = rs.getInt("C_DocType_ID");
-
-					if (docTypeID == SASSystemID.DOCTYPE_CUSTOMER_RMA_A && lastInvoiceDocTypeID == SASSystemID.DOCTYPE_AR_INVOICE_SF_TAX) {
-						invoiceDocTypeID = SASSystemID.DOCTYPE_AR_INVOICE_SF_TAX;
-					} else if (docTypeID == SASSystemID.DOCTYPE_CUSTOMER_RMA_B && lastInvoiceDocTypeID == SASSystemID.DOCTYPE_AR_INVOICE_SF_NON_TAX) {
-						invoiceDocTypeID =  SASSystemID.DOCTYPE_AR_INVOICE_SF_NON_TAX;
-					}
+					invoiceLineID = rs.getInt("C_InvoiceLine_ID");
 					
 					mTab.setValue("M_InOutLine_ID", inOutLineID);
 					MInOutLine ioLine = new MInOutLine(ctx, inOutLineID, null);
@@ -91,6 +105,20 @@ public class CalloutRMALineProduct implements IColumnCallout {
 						DB.executeUpdateEx("UPDATE M_RMA SET InOut_ID = ? WHERE M_RMA_ID = ?",
 								new Object[]{ioLine.getM_InOut_ID(),rma.get_ID()}, null);
 					}
+					
+					MInvoiceLine invoiceLine = new MInvoiceLine(Env.getCtx(), invoiceLineID, null);
+			        MInvoice invoice = MInvoice.get(Env.getCtx(), invoiceLine.getC_Invoice_ID());
+			        int precision = invoice.getPrecision();
+			        mTab.setValue("C_InvoiceLine_ID", invoiceLine.get_ID());
+			        mTab.setValue(MRMALine.COLUMNNAME_Qty, Env.ONE);
+			        mTab.setValue(MRMALine.COLUMNNAME_Amt, invoiceLine.getPriceActual());		
+			        if (invoiceLine.getC_Tax_ID() != 0)
+			            mTab.setValue(MRMALine.COLUMNNAME_C_Tax_ID, invoiceLine.getC_Tax_ID());
+			        
+			        BigDecimal lineNetAmt = Env.ONE.multiply(invoiceLine.getPriceActual());
+			        if (lineNetAmt.scale() > precision)
+			            lineNetAmt = lineNetAmt.setScale(precision, BigDecimal.ROUND_HALF_UP);
+			        mTab.setValue(MRMALine.COLUMNNAME_LineNetAmt, lineNetAmt);
 				}
 			}
 			catch (SQLException e)
@@ -101,57 +129,6 @@ public class CalloutRMALineProduct implements IColumnCallout {
 			{
 				DB.close(rs, pstmt);
 				rs = null; pstmt = null;
-			}
-			
-			// SAS-21 look for amount in last invoice
-			StringBuilder sql = new StringBuilder();
-            sql.append("SELECT C_InvoiceLine_ID ");
-            sql.append("FROM C_InvoiceLine il ");
-            sql.append("INNER JOIN C_Invoice i ON (i.C_Invoice_ID = il.C_Invoice_ID) ");
-            sql.append("WHERE i.DocStatus IN ('CO','CL') ");
-            sql.append("AND i.IsSOTrx = ? ");
-            sql.append("AND i.C_BPartner_ID = ? ");
-            sql.append("AND il.M_Product_ID = ? ");
-            sql.append("AND i.C_DocType_ID = ? ");
-            sql.append("AND i.AD_OrgTrx_ID = ? ");
-            sql.append("AND il.M_InOutLine_ID = ? ");
-            sql.append("ORDER BY i.DateInvoiced DESC ");
-			
-			pstmt = null;
-			rs = null;
-			try
-			{
-			  pstmt = DB.prepareStatement(sql.toString(), null);
-			  DB.setParameters(pstmt, new Object[]{soTrx, bpID, productID, invoiceDocTypeID, orgTrxID, inOutLineID});
-			  rs = pstmt.executeQuery();
-			  if (rs.next())
-			  {
-				  MInvoiceLine invoiceLine = new MInvoiceLine(Env.getCtx(), rs.getInt("C_InvoiceLine_ID"), null);
-				  MInvoice invoice = MInvoice.get(Env.getCtx(), invoiceLine.getC_Invoice_ID());
-				  int precision = invoice.getPrecision();
-				  mTab.setValue("C_InvoiceLine_ID", invoiceLine.get_ID());
-				  mTab.setValue(MRMALine.COLUMNNAME_Qty, Env.ONE);
-				  mTab.setValue(MRMALine.COLUMNNAME_Amt, invoiceLine.getPriceActual());		
-				  if (invoiceLine.getC_Tax_ID() != 0)
-						mTab.setValue(MRMALine.COLUMNNAME_C_Tax_ID, invoiceLine.getC_Tax_ID());
-					
-					BigDecimal lineNetAmt = Env.ONE.multiply(invoiceLine.getPriceActual());
-					if (lineNetAmt.scale() > precision)
-						lineNetAmt = lineNetAmt.setScale(precision, BigDecimal.ROUND_HALF_UP);
-					mTab.setValue(MRMALine.COLUMNNAME_LineNetAmt, lineNetAmt);
-			  }
-			}
-			// If your method is not throwing Exception or SQLException you need this block to catch SQLException
-			// and convert them to unchecked DBException
-			catch (SQLException e)
-			{
-			  throw new DBException(e, sql.toString());
-			}
-			// '''ALWAYS''' close your ResultSet in a finally statement
-			finally
-			{
-			  DB.close(rs, pstmt);
-			  rs = null; pstmt = null;
 			}
 		}
 		return "";
