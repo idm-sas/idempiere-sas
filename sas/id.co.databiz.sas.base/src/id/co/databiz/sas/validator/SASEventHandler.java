@@ -638,6 +638,9 @@ public class SASEventHandler extends AbstractEventHandler {
 							Timestamp dueDate = invoice.getDateInvoiced();
 							dueDate = TimeUtil.addDays(dueDate, paymentTerm.getNetDays() + paymentTerm.getGraceDays());
 							
+							Timestamp netDate = invoice.getDateInvoiced();
+							netDate = TimeUtil.addDays(netDate, paymentTerm.getNetDays());
+							
 							Timestamp currentDate = new Timestamp(System.currentTimeMillis());
 							currentDate = TimeUtil.addDays(currentDate, 0);
 							
@@ -649,6 +652,13 @@ public class SASEventHandler extends AbstractEventHandler {
 							} else {
 								orderCustom.setSO_AgingOver(Env.ZERO);
 								orderCustom.setZ_WFScenarioAging_ID(0);
+							}
+							
+							if (netDate.before(currentDate)) {
+								int daysBetween = TimeUtil.getDaysBetween(netDate, currentDate);
+								orderCustom.setSO_AgingNet(BigDecimal.valueOf(daysBetween));
+							} else {
+								orderCustom.setSO_AgingNet(Env.ZERO);
 							}
 						} else {
 							orderCustom.setSO_AgingOver(Env.ZERO);

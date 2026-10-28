@@ -22,4 +22,6 @@ public interface ICOrder
 	public void setSO_CreditOver(BigDecimal SO_CreditOver);
 	public BigDecimal getSO_AgingOver();
 	public void setSO_AgingOver(BigDecimal SO_AgingOver);
+	public BigDecimal getSO_AgingNet();
+	public void setSO_AgingNet(BigDecimal SO_AgingNet);
 }
