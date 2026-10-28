@@ -414,7 +414,8 @@ public class SASEventHandler extends AbstractEventHandler {
 					
 					// SAS-69 Credit Limit logic
 					if (docType.getDocBaseType().equals(MDocType.DOCBASETYPE_SalesOrder) && 
-						(docType.getDocSubTypeSO().equals(MDocType.DOCSUBTYPESO_StandardOrder) || docType.getDocSubTypeSO().equals(MDocType.DOCSUBTYPESO_Quotation))) {
+						(docType.getDocSubTypeSO().equals(MDocType.DOCSUBTYPESO_StandardOrder) || docType.getDocSubTypeSO().equals(MDocType.DOCSUBTYPESO_Quotation)
+								|| docType.getDocSubTypeSO().equals(MDocType.DOCSUBTYPESO_Proposal))) {
 						
 						MBPRule bpRule = new Query(Env.getCtx(), MBPRule.Table_Name, "C_BPartner_ID = ? AND AD_OrgTrx_ID = ?", po.get_TrxName())
 							.setOnlyActiveRecords(true)
@@ -434,7 +435,7 @@ public class SASEventHandler extends AbstractEventHandler {
 									sqlSOAmt.append("FROM C_Order o ");
 									sqlSOAmt.append("INNER JOIN C_DocType dt ON (dt.C_DocType_ID = o.C_DocType_ID) ");
 									sqlSOAmt.append("WHERE o.IsSOTrx = 'Y' AND o.DocStatus IN ('CO','IP') ");
-									sqlSOAmt.append("AND dt.DocBaseType = 'SOO' AND dt.IsInternal = 'N' AND dt.DocSubTypeSO IN ('SO','OB') ");
+									sqlSOAmt.append("AND dt.DocBaseType = 'SOO' AND dt.IsInternal = 'N' AND dt.DocSubTypeSO IN ('SO','OB', 'ON') ");
 									sqlSOAmt.append("AND o.C_Order_ID <> ? AND o.Bill_BPartner_ID = ? ");
 								
 								BigDecimal soTotalAmt = DB.getSQLValueBD(po.get_TrxName(), sqlSOAmt.toString(), 
@@ -512,14 +513,14 @@ public class SASEventHandler extends AbstractEventHandler {
 									orderCustom.setZ_WFScenarioCredit_ID(0);
 								}
 								order.saveEx();
-							} else if (docType.getDocSubTypeSO().equals(MDocType.DOCSUBTYPESO_Quotation)) {
+							} else if (docType.getDocSubTypeSO().equals(MDocType.DOCSUBTYPESO_Quotation) || docType.getDocSubTypeSO().equals(MDocType.DOCSUBTYPESO_Proposal)) {
 
 								StringBuilder sqlSOAmt = new StringBuilder();
 								sqlSOAmt.append("SELECT COALESCE(SUM(o.GrandTotal),0) ");
 								sqlSOAmt.append("FROM C_Order o ");
 								sqlSOAmt.append("INNER JOIN C_DocType dt ON (dt.C_DocType_ID = o.C_DocType_ID) ");
 								sqlSOAmt.append("WHERE o.IsSOTrx = 'Y' AND o.DocStatus IN ('CO','IP') ");
-								sqlSOAmt.append("AND dt.DocBaseType = 'SOO' AND dt.IsInternal = 'N' AND dt.DocSubTypeSO IN ('SO','OB') ");
+								sqlSOAmt.append("AND dt.DocBaseType = 'SOO' AND dt.IsInternal = 'N' AND dt.DocSubTypeSO IN ('SO','OB', 'ON') ");
 								sqlSOAmt.append("AND o.C_Order_ID <> ? AND o.Bill_BPartner_ID = ? ");
 							
 							BigDecimal soTotalAmt = DB.getSQLValueBD(po.get_TrxName(), sqlSOAmt.toString(), 
@@ -540,7 +541,7 @@ public class SASEventHandler extends AbstractEventHandler {
 							sqlSOClosedAmt.append("INNER JOIN C_DocType dt ON (dt.C_DocType_ID = o.C_DocType_ID) ");
 							sqlSOClosedAmt.append("INNER JOIN M_PriceList pl ON (pl.M_PriceList_ID = o.M_PriceList_ID) ");
 							sqlSOClosedAmt.append("WHERE o.IsSOTrx = 'Y' AND o.DocStatus IN ('CL') ");
-							sqlSOClosedAmt.append("AND dt.DocBaseType = 'SOO' AND dt.IsInternal = 'N' AND dt.DocSubTypeSO = 'OB' ");
+							sqlSOClosedAmt.append("AND dt.DocBaseType = 'SOO' AND dt.IsInternal = 'N' AND dt.DocSubTypeSO IN ('OB', 'ON') ");
 							sqlSOClosedAmt.append("AND o.C_Order_ID <> ? AND o.Bill_BPartner_ID = ? ");
 							
 							BigDecimal soTotalClosedAmt = DB.getSQLValueBD(po.get_TrxName(), sqlSOClosedAmt.toString(), 

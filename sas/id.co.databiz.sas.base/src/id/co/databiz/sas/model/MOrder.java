@@ -1781,10 +1781,20 @@ public class MOrder extends org.compiere.model.MOrder implements DocAction
 		//	Not binding - i.e. Target=0
 		if (DOCACTION_Void.equals(getDocAction())
 			//	Closing Binding Quotation
-			|| (MDocType.DOCSUBTYPESO_Quotation.equals(dt.getDocSubTypeSO()) 
+			|| ((MDocType.DOCSUBTYPESO_Quotation.equals(dt.getDocSubTypeSO()) 
+					|| MDocType.DOCSUBTYPESO_Proposal.equals(dt.getDocSubTypeSO()))
 				&& DOCACTION_Close.equals(getDocAction())) 
 			) // || isDropShip() )
 			binding = false;
+		
+		// Proposal is binding upon completion to reserve stock.
+		// Preserve stock reservation after the proposal is reopened.
+		if (MDocType.DOCSUBTYPESO_Proposal.equals(dt.getDocSubTypeSO()) 
+		        && (DOCACTION_Complete.equals(getDocAction()) 
+		        		|| (DOCACTION_None.equals(getDocAction()) && DOCSTATUS_Closed.equals(getDocStatus())))
+		    )
+			binding = true;
+		
 		boolean isSOTrx = isSOTrx();
 		if (log.isLoggable(Level.FINE)) log.fine("Binding=" + binding + " - IsSOTrx=" + isSOTrx);
 		//	Force same WH for all but SO/PO
@@ -1977,13 +1987,12 @@ public class MOrder extends org.compiere.model.MOrder implements DocAction
 		// Set the definite document number after completed (if needed)
 		setDefiniteDocumentNo();
 
-		//	Offers
+		//	Offersd
 		if (MDocType.DOCSUBTYPESO_Proposal.equals(DocSubTypeSO)
 			|| MDocType.DOCSUBTYPESO_Quotation.equals(DocSubTypeSO)) 
 		{
 			//	Binding
-			if (MDocType.DOCSUBTYPESO_Quotation.equals(DocSubTypeSO))
-				reserveStock(dt, getLines(true, MOrderLine.COLUMNNAME_M_Product_ID));
+			reserveStock(dt, getLines(true, MOrderLine.COLUMNNAME_M_Product_ID));
 			m_processMsg = ModelValidationEngine.get().fireDocValidate(this, ModelValidator.TIMING_BEFORE_COMPLETE);
 			if (m_processMsg != null)
 				return DocAction.STATUS_Invalid;
@@ -3262,7 +3271,7 @@ public class MOrder extends org.compiere.model.MOrder implements DocAction
 	private String validateReservation() {
 		String errorMessage = "";
 		MDocType docType = MDocType.get(Env.getCtx(), getC_DocTypeTarget_ID());
-		if (isSOTrx() && !docType.isProposal()) {
+		if (isSOTrx()) {
 			// SAS-27 validation availability per Org
 			MWarehouse wh = MWarehouse.get(Env.getCtx(), getM_Warehouse_ID());
 			if (wh.getM_ReserveLocator_ID() > 0) {

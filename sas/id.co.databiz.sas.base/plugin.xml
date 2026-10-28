@@ -371,5 +371,13 @@
             class="id.co.databiz.sas.process.SAS250_BenefitDiscKSaldo">
       </process>
    </extension>
+   <extension
+         id="id.co.databiz.sas.process.OrderOpen"
+         name="OrderOpen"
+         point="org.adempiere.base.Process">
+      <process
+            class="id.co.databiz.sas.process.OrderOpen">
+      </process>
+   </extension>
 
 </plugin>
