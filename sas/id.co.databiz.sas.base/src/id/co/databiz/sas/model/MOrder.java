@@ -1777,7 +1777,7 @@ public class MOrder extends org.compiere.model.MOrder implements DocAction
 			dt = MDocType.get(getCtx(), getC_DocType_ID());
 
 		//	Binding
-		boolean binding = !dt.isProposal();
+		boolean binding = true;
 		//	Not binding - i.e. Target=0
 		if (DOCACTION_Void.equals(getDocAction())
 			//	Closing Binding Quotation
@@ -1786,14 +1786,6 @@ public class MOrder extends org.compiere.model.MOrder implements DocAction
 				&& DOCACTION_Close.equals(getDocAction())) 
 			) // || isDropShip() )
 			binding = false;
-		
-		// Proposal is binding upon completion to reserve stock.
-		// Preserve stock reservation after the proposal is reopened.
-		if (MDocType.DOCSUBTYPESO_Proposal.equals(dt.getDocSubTypeSO()) 
-		        && (DOCACTION_Complete.equals(getDocAction()) 
-		        		|| (DOCACTION_None.equals(getDocAction()) && DOCSTATUS_Closed.equals(getDocStatus())))
-		    )
-			binding = true;
 		
 		boolean isSOTrx = isSOTrx();
 		if (log.isLoggable(Level.FINE)) log.fine("Binding=" + binding + " - IsSOTrx=" + isSOTrx);
