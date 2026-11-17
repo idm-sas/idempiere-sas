@@ -139,11 +139,11 @@ public class SalesOrderActualization {
 //				sql1.append("join sas_ngk_rule snr on snr.sas_c_bpartnerngk_id = bp.sas_c_bpartnerngk_id and snr.ad_org_id = 1000005 and snr.c_campaign_id = ol.c_campaign_id ");
 //			}
 			if(parentorg.getName() != null && parentorg.getName().startsWith("Philips")) {
-				sql1.append("join sas_ngk_rule snr on snr.sas_c_bpartnerngk_id = bp.sas_c_bpartnerngk_id and snr.ad_org_id = "+parentorg.getAD_Org_ID()+" and snr.c_campaign_id = ol.c_campaign_id ");
+				sql1.append("join sas_ngk_rule snr on snr.sas_c_bpartnerngk_id = bp.sas_c_bpartnerngk_id and snr.ad_org_id = "+parentorg.getAD_Org_ID()+" and snr.c_campaign_id = ol.c_campaign_id and snr.isactive = 'Y' ");
 
 			}
 			else {
-				sql1.append("join sas_ngk_rule snr on snr.sas_c_bpartnerngk_id = bp.sas_c_bpartnerngk_id and snr.ad_orgtrx_id = "+order.getAD_OrgTrx_ID()+" and snr.c_campaign_id = ol.c_campaign_id ");
+				sql1.append("join sas_ngk_rule snr on snr.sas_c_bpartnerngk_id = bp.sas_c_bpartnerngk_id and snr.ad_orgtrx_id = "+order.getAD_OrgTrx_ID()+" and snr.c_campaign_id = ol.c_campaign_id and snr.isactive = 'Y' ");
 			}
 			sql1.append("join c_campaign c on c.c_campaign_id = snr.c_campaign_id ");
 			sql1.append("WHERE 1=1 ");
@@ -318,11 +318,11 @@ public class SalesOrderActualization {
 //						sqlcheck.append("join sas_ngk_rule snr on snr.sas_c_bpartnerngk_id = bp.sas_c_bpartnerngk_id and snr.ad_org_id = 1000005 and snr.c_campaign_id = ol.c_campaign_id ");
 //					}
 					if(parentorg.getName() != null && parentorg.getName().startsWith("Philips")) {
-						sqlcheck.append("join sas_ngk_rule snr on snr.sas_c_bpartnerngk_id = bp.sas_c_bpartnerngk_id and snr.ad_org_id = "+parentorg.getAD_Org_ID()+" and snr.c_campaign_id = ol.c_campaign_id ");
+						sqlcheck.append("join sas_ngk_rule snr on snr.sas_c_bpartnerngk_id = bp.sas_c_bpartnerngk_id and snr.ad_org_id = "+parentorg.getAD_Org_ID()+" and snr.c_campaign_id = ol.c_campaign_id and snr.isactive = 'Y' ");
 
 					}
 					else {
-						sqlcheck.append("join sas_ngk_rule snr on snr.sas_c_bpartnerngk_id = bp.sas_c_bpartnerngk_id and snr.ad_orgtrx_id = "+order.getAD_OrgTrx_ID()+" and snr.c_campaign_id = ol.c_campaign_id ");
+						sqlcheck.append("join sas_ngk_rule snr on snr.sas_c_bpartnerngk_id = bp.sas_c_bpartnerngk_id and snr.ad_orgtrx_id = "+order.getAD_OrgTrx_ID()+" and snr.c_campaign_id = ol.c_campaign_id and snr.isactive = 'Y' ");
 					}
 					sqlcheck.append("join c_campaign c on c.c_campaign_id = snr.c_campaign_id ");
 					sqlcheck.append("WHERE 1=1 ");
