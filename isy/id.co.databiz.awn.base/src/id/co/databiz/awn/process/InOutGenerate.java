@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.logging.Level;
+import java.sql.SQLException;
 
 import org.adempiere.exceptions.AdempiereException;
 import org.compiere.model.MClient;
@@ -222,8 +223,20 @@ public class InOutGenerate extends SvrProcess
 			rs = pstmt.executeQuery ();
 			while (rs.next ())		//	Order
 			{
-				MOrder order = new MOrder (getCtx(), rs, get_TrxName());
-				statusUpdate(Msg.getMsg(getCtx(), "Processing") + " " + order.getDocumentInfo());
+			    MOrder order = new MOrder (getCtx(),rs,get_TrxName());
+
+			    // Lock Sales Order
+			    lockOrder(order.getC_Order_ID());
+
+			    // Reload Order after acquiring lock
+			    order = new MOrder(getCtx(),order.getC_Order_ID(),get_TrxName());
+
+			    // Recheck Order Status
+			    if (!MOrder.DOCSTATUS_Completed.equals(
+			        order.getDocStatus()))
+			        continue;
+
+			        statusUpdate(Msg.getMsg(getCtx(), "Processing")+ " " + order.getDocumentInfo());
 				
 				//	New Header different Shipper, Shipment Location
 				if (!p_ConsolidateDocument 
@@ -738,5 +751,47 @@ public class InOutGenerate extends SvrProcess
 		}	//	hashCode
 		
 	}	//	Parameter
+	
+	/**
+	 * Lock Sales Order to prevent concurrent shipment generation.
+	 *
+	 * @param C_Order_ID Sales Order ID
+	 */
+	private void lockOrder(int C_Order_ID)
+	{
+	    String sql =
+	        "SELECT C_Order_ID " +
+	        "FROM C_Order " +
+	        "WHERE C_Order_ID = ? " +
+	        "FOR UPDATE";
+
+	    PreparedStatement pstmt = null;
+	    ResultSet rs = null;
+
+	    try
+	    {
+	        pstmt = DB.prepareStatement(
+	            sql,
+	            get_TrxName()
+	        );
+
+	        pstmt.setInt(1, C_Order_ID);
+
+	        rs = pstmt.executeQuery();
+
+	        if (!rs.next())
+	            throw new AdempiereException(
+	                "Sales Order not found: " + C_Order_ID
+	            );
+	    }
+	    catch (Exception e)
+	    {
+	        throw new AdempiereException(e);
+	    }
+	    finally
+	    {
+	        DB.close(rs, pstmt);
+	    }
+	}
 	
 }	//	InOutGenerate
